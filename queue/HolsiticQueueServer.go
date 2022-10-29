@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"fmt"
 	"strings"
+	"encoding/json"
+	"io/ioutil"
 	class "github.com/matehaxor03/holistic_db_client/class"
 )
 
@@ -72,7 +74,18 @@ func NewHolisticQueueServer(port string, server_crt_path string, server_key_path
 	}
 
 	processRequest := func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte(formatRequest(req)))
+		if req.Method == "POST" || req.Method == "PUT" {
+			json_payload := class.Map{}
+			body_payload, body_payload_error := ioutil.ReadAll(req.Body);
+			if body_payload_error != nil {
+				w.Write([]byte(body_payload_error.Error()))
+			} else {
+				json.Unmarshal([]byte(body_payload), &json_payload)
+				w.Write([]byte("ok"))
+			}
+		} else {
+			w.Write([]byte(formatRequest(req)))
+		}
 	}
 
 	x := HolisticQueueServer{
