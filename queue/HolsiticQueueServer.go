@@ -15,6 +15,8 @@ type HolisticQueueServer struct {
 
 func NewHolisticQueueServer(port string, server_crt_path string, server_key_path string) (*HolisticQueueServer, []error) {
 	//var this_holisic_queue_server *HolisticQueueServer
+	queues := make(map[string](*Queue))
+	queues["create_repository"] = NewQueue()
 
 	data := class.Map{
 		"[port]": class.Map{"value": class.CloneString(&port), "mandatory": true},
@@ -74,14 +76,24 @@ func NewHolisticQueueServer(port string, server_crt_path string, server_key_path
 	}
 
 	processRequest := func(w http.ResponseWriter, req *http.Request) {
-		if req.Method == "POST" || req.Method == "PUT" {
+		if req.Method == "POST" || req.Method == "PATCH" || req.Method == "PUT" {
 			json_payload := class.Map{}
 			body_payload, body_payload_error := ioutil.ReadAll(req.Body);
 			if body_payload_error != nil {
 				w.Write([]byte(body_payload_error.Error()))
 			} else {
 				json.Unmarshal([]byte(body_payload), &json_payload)
-				w.Write([]byte("ok"))
+				command_type, command_type_errors := json_payload.GetString("command_type")
+				if command_type_errors != nil {
+					w.Write([]byte("command type does not exist error"))
+				} else {
+					if *command_type == "CreateRepository" {
+						queues["create_repository"].PushFront(&json_payload)
+					} else {
+						fmt.Println(fmt.Sprintf("message type not supported please implement: %s", *command_type))
+					}
+					w.Write([]byte("ok"))
+				}
 			}
 		} else {
 			w.Write([]byte(formatRequest(req)))
