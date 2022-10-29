@@ -1,45 +1,27 @@
 package main
 
 import (
-	"net/http"
-	"fmt"
-	"strings"
+	queue "github.com/matehaxor03/holistic_queue/queue"
+	"os"
 )
 
-func formatRequest(r *http.Request) string {
-	var request []string
-
-	url := fmt.Sprintf("%v %v %v", r.Method, r.URL, r.Proto)
-	request = append(request, url)
-	request = append(request, fmt.Sprintf("Host: %v", r.Host))
-	for name, headers := range r.Header {
-		name = strings.ToLower(name)
-		for _, h := range headers {
-			request = append(request, fmt.Sprintf("%v: %v", name, h))
+func main() {
+	var errors []error
+	holistic_queue_server, holistic_queue_server_errors := queue.NewHolisticQueueServer("5000", "server.crt", "server.key")
+	if errors != nil {
+		errors = append(errors, holistic_queue_server_errors...)	
+	} else {
+		holistic_queue_start_errors := holistic_queue_server.Start()
+		if holistic_queue_start_errors != nil {
+			errors = append(errors, holistic_queue_start_errors...)
 		}
 	}
 
-	if r.Method == "POST" {
-		r.ParseForm()
-		request = append(request, "\n")
-		request = append(request, r.Form.Encode())
+	if len(errors) > 0 {
+		os.Exit(1)
 	}
-
-	return strings.Join(request, "\n")
-}
-
-func ProcessRequest(w http.ResponseWriter, req *http.Request) {
-	w.Write([]byte(formatRequest(req)))
-}
-
-
-func main() {
-	http.HandleFunc("/", ProcessRequest)
-
-	err := http.ListenAndServeTLS(":443", "server.crt", "server.key", nil)
-	if err != nil {
-		fmt.Println("ListenAndServe: ", err)
-	}
+	
+	os.Exit(0)
 }
 
 
