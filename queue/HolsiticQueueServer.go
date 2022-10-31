@@ -14,10 +14,38 @@ type HolisticQueueServer struct {
 }
 
 func NewHolisticQueueServer(port string, server_crt_path string, server_key_path string) (*HolisticQueueServer, []error) {
+	var errors []error
 	//var this_holisic_queue_server *HolisticQueueServer
+	
+	db_hostname, db_port_number, db_name, read_db_username, _, migration_details_errors := class.GetCredentialDetails("holistic_read")
+	if migration_details_errors != nil {
+		errors = append(errors, migration_details_errors...)
+	}
+
+	host, host_errors := class.NewHost(&db_hostname, &db_port_number)
+	client, client_errors := class.NewClient(host, &read_db_username, nil)
+
+	if host_errors != nil {
+		errors = append(errors, host_errors...)
+	}
+
+	if client_errors != nil {
+		errors = append(errors, client_errors...)
+	}
+
+	if len(errors) > 0 {
+		return nil, errors
+	}
+
+	_, use_database_errors := client.UseDatabaseByName(db_name)
+	if use_database_errors != nil {
+		return nil, use_database_errors
+	}
+	
 	queues := make(map[string](*Queue))
 	queues["CreateRepository"] = NewQueue()
 
+	//todo: add filters to fields
 	data := class.Map{
 		"[port]": class.Map{"value": class.CloneString(&port), "mandatory": true},
 		"[server_crt_path]": class.Map{"value": class.CloneString(&server_crt_path), "mandatory": true},
@@ -89,7 +117,7 @@ func NewHolisticQueueServer(port string, server_crt_path string, server_key_path
 				} else {
 					queue, ok := queues[*message_type]
 					if ok {
-						queue.PushFront(&json_payload)
+						queue.PushBack(&json_payload)
 						w.Write([]byte("ok"))
 					} else {
 						fmt.Println(fmt.Sprintf("message type not supported please implement: %s", *message_type))
@@ -121,9 +149,12 @@ func NewHolisticQueueServer(port string, server_crt_path string, server_key_path
 	}
 	//setHolisticQueueServer(&x)
 
-	errors := validate()
+	validate_errors := validate()
+	if validate_errors != nil {
+		errors = append(errors, validate_errors...)
+	}
 
-	if errors != nil {
+	if len(errors) > 0 {
 		return nil, errors
 	}
 

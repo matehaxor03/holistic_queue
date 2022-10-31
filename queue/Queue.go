@@ -9,6 +9,7 @@ import (
 
 type Queue struct {
 	PushFront func(message *(class.Map)) *(class.Map)
+	PushBack func(message *(class.Map)) *(class.Map)
 	Len func() uint64
 }
 
@@ -21,6 +22,12 @@ func NewQueue() (*Queue) {
 			lock.Lock()
 			defer lock.Unlock()
 			l.PushFront(message)
+			return message
+		},
+		PushBack: func(message *(class.Map)) *(class.Map) {
+			lock.Lock()
+			defer lock.Unlock()
+			l.PushBack(message)
 			return message
 		},
 		Len: func() uint64 {
