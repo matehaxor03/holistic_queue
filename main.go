@@ -3,21 +3,23 @@ package main
 import (
 	queue "github.com/matehaxor03/holistic_queue/queue"
 	"os"
+	"fmt"
 )
 
 func main() {
 	var errors []error
-	holistic_queue_server, holistic_queue_server_errors := queue.NewHolisticQueueServer("5000", "server.crt", "server.key")
-	if errors != nil {
-		errors = append(errors, holistic_queue_server_errors...)	
+	queue_server, queue_server_errors := queue.NewQueueServer("5000", "server.crt", "server.key")
+	if queue_server_errors != nil {
+		errors = append(errors, queue_server_errors...)	
 	} else {
-		holistic_queue_start_errors := holistic_queue_server.Start()
-		if holistic_queue_start_errors != nil {
-			errors = append(errors, holistic_queue_start_errors...)
+		queue_server_start_errors := queue_server.Start()
+		if queue_server_start_errors != nil {
+			errors = append(errors, queue_server_start_errors...)
 		}
 	}
 
 	if len(errors) > 0 {
+		fmt.Println(errors)
 		os.Exit(1)
 	}
 	

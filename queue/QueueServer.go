@@ -9,11 +9,11 @@ import (
 	class "github.com/matehaxor03/holistic_db_client/class"
 )
 
-type HolisticQueueServer struct {
+type QueueServer struct {
 	Start      			func() ([]error)
 }
 
-func NewHolisticQueueServer(port string, server_crt_path string, server_key_path string) (*HolisticQueueServer, []error) {
+func NewQueueServer(port string, server_crt_path string, server_key_path string) (*QueueServer, []error) {
 	var errors []error
 	//var this_holisic_queue_server *HolisticQueueServer
 	
@@ -22,7 +22,11 @@ func NewHolisticQueueServer(port string, server_crt_path string, server_key_path
 		errors = append(errors, migration_details_errors...)
 	}
 
-	host, host_errors := class.NewHost(&db_hostname, &db_port_number)
+	if len(errors) > 0 {
+		return nil, errors
+	}
+
+	host, host_errors := class.NewHost(db_hostname, db_port_number)
 	client, client_errors := class.NewClient(host, &read_db_username, nil)
 
 	if host_errors != nil {
@@ -37,13 +41,23 @@ func NewHolisticQueueServer(port string, server_crt_path string, server_key_path
 		return nil, errors
 	}
 
-	_, use_database_errors := client.UseDatabaseByName(db_name)
+	database, use_database_errors := client.UseDatabaseByName(db_name)
 	if use_database_errors != nil {
 		return nil, use_database_errors
 	}
 	
 	queues := make(map[string](*Queue))
-	queues["CreateRepository"] = NewQueue()
+	table_names, table_names_errors := database.GetTableNames()
+	if table_names_errors != nil {
+		return nil, table_names_errors
+	}
+
+	for _, table_name := range *table_names {
+		queues["Create_" + table_name] = NewQueue()
+		queues["Read_" + table_name] = NewQueue()
+		queues["Update_" + table_name] = NewQueue()
+		queues["Delete_" + table_name] = NewQueue()
+	}
 
 	//todo: add filters to fields
 	data := class.Map{
@@ -130,7 +144,7 @@ func NewHolisticQueueServer(port string, server_crt_path string, server_key_path
 		}
 	}
 
-	x := HolisticQueueServer{
+	x := QueueServer{
 		Start: func() []error {
 			var errors []error
 			http.HandleFunc("/", processRequest)
