@@ -19,33 +19,13 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 	wait_groups := make(map[string]sync.WaitGroup)
 	//var this_holisic_queue_server *HolisticQueueServer
 	
-	db_hostname, db_port_number, db_name, read_db_username, _, migration_details_errors := class.GetCredentialDetails("holistic_read")
-	if migration_details_errors != nil {
-		errors = append(errors, migration_details_errors...)
+	database, database_errors := class.GetDatabase("holistic_read")
+	if database_errors != nil {
+		errors = append(errors, database_errors...)
 	}
 
 	if len(errors) > 0 {
 		return nil, errors
-	}
-
-	host, host_errors := class.NewHost(db_hostname, db_port_number)
-	client, client_errors := class.NewClient(host, &read_db_username, nil)
-
-	if host_errors != nil {
-		errors = append(errors, host_errors...)
-	}
-
-	if client_errors != nil {
-		errors = append(errors, client_errors...)
-	}
-
-	if len(errors) > 0 {
-		return nil, errors
-	}
-
-	database, use_database_errors := client.UseDatabaseByName(db_name)
-	if use_database_errors != nil {
-		return nil, use_database_errors
 	}
 	
 	queues := make(map[string](*Queue))
