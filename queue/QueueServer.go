@@ -59,6 +59,8 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 		queues["Delete_" + table_name] = NewQueue()
 	}
 
+	queues["Get_Tables"] = NewQueue()
+
 	//todo: add filters to fields
 	data := class.Map{
 		"[port]": class.Map{"value": class.CloneString(&port), "mandatory": true},
@@ -129,7 +131,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 				fmt.Println(json_payload.Keys())
 				fmt.Println(string(body_payload))
 
-				message_type, message_type_errors := json_payload.GetString("message_type")
+				message_type, message_type_errors := json_payload.GetString("[message_type]")
 				if message_type_errors != nil {
 					w.Write([]byte("message_type does not exist error"))
 				} else {
