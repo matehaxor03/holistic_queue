@@ -125,6 +125,10 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 				w.Write([]byte(body_payload_error.Error()))
 			} else {
 				json.Unmarshal([]byte(body_payload), &json_payload)
+				
+				fmt.Println(json_payload.Keys())
+				fmt.Println(string(body_payload))
+
 				message_type, message_type_errors := json_payload.GetString("message_type")
 				if message_type_errors != nil {
 					w.Write([]byte("message_type does not exist error"))
