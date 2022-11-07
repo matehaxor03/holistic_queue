@@ -10,6 +10,7 @@ import (
 type Queue struct {
 	PushFront func(message *(class.Map)) *(class.Map)
 	PushBack func(message *(class.Map)) *(class.Map)
+	GetAndRemoveFront func() *(class.Map)
 	Len func() uint64
 }
 
@@ -29,6 +30,18 @@ func NewQueue() (*Queue) {
 			defer lock.Unlock()
 			l.PushBack(message)
 			return message
+		},
+		GetAndRemoveFront: func() *(class.Map) {
+			lock.Lock()
+			defer lock.Unlock()
+			message := l.Front()
+
+			if message == nil {
+				return nil
+			}
+		
+			l.Remove(message)
+			return message.Value.(*(class.Map))
 		},
 		Len: func() uint64 {
 			lock.Lock()

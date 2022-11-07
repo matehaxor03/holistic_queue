@@ -152,6 +152,13 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 								queue.PushBack(&json_payload)
 								wg.Wait()
 								w.Write([]byte("ok"))
+							} else if *queue_mode == "GetAndRemoveFront" {
+								front := queue.GetAndRemoveFront()
+								if front == nil {
+									w.Write([]byte("{}"))
+								} else {
+									w.Write([]byte(front.ToJSONString()))
+								}
 							} else {
 								fmt.Println(fmt.Sprintf("[queue_mode] not supported please implement: %s", *queue_mode))
 								w.Write([]byte(fmt.Sprintf("[queue_mode] not supported please implement: %s", *queue_mode)))
