@@ -6,6 +6,7 @@ import (
 	"strings"
 	"encoding/json"
 	"io/ioutil"
+	"sync"
 	class "github.com/matehaxor03/holistic_db_client/class"
 )
 
@@ -15,6 +16,7 @@ type QueueServer struct {
 
 func NewQueueServer(port string, server_crt_path string, server_key_path string) (*QueueServer, []error) {
 	var errors []error
+	wait_groups := make(map[string]sync.WaitGroup)
 	//var this_holisic_queue_server *HolisticQueueServer
 	
 	db_hostname, db_port_number, db_name, read_db_username, _, migration_details_errors := class.GetCredentialDetails("holistic_read")
@@ -131,17 +133,33 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 				fmt.Println(json_payload.Keys())
 				fmt.Println(string(body_payload))
 
-				message_type, message_type_errors := json_payload.GetString("[message_type]")
+				message_type, message_type_errors := json_payload.GetString("[queue]")
+				trace_id, _ := json_payload.GetString("[trace_id]")
+
 				if message_type_errors != nil {
-					w.Write([]byte("message_type does not exist error"))
+					w.Write([]byte("[queue] does not exist error"))
 				} else {
 					queue, ok := queues[*message_type]
 					if ok {
-						queue.PushBack(&json_payload)
-						w.Write([]byte("ok"))
+						queue_mode, queue_mode_errors := json_payload.GetString("[queue_mode]")
+						if queue_mode_errors != nil {
+							w.Write([]byte("[queue_mode] does not exist error"))
+						} else {
+							if *queue_mode == "PushBack" {
+								var wg sync.WaitGroup
+								wg.Add(1)
+								wait_groups[*trace_id] = wg
+								queue.PushBack(&json_payload)
+								wg.Wait()
+								w.Write([]byte("ok"))
+							} else {
+								fmt.Println(fmt.Sprintf("[queue_mode] not supported please implement: %s", *queue_mode))
+								w.Write([]byte(fmt.Sprintf("[queue_mode] not supported please implement: %s", *queue_mode)))
+							}
+						}
 					} else {
-						fmt.Println(fmt.Sprintf("message type not supported please implement: %s", *message_type))
-						w.Write([]byte(fmt.Sprintf("message type not supported please implement: %s", *message_type)))
+						fmt.Println(fmt.Sprintf("[queue] not supported please implement: %s", *message_type))
+						w.Write([]byte(fmt.Sprintf("[queue] not supported please implement: %s", *message_type)))
 					}
 				}
 			}
