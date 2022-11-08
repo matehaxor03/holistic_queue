@@ -133,14 +133,24 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 								queue.PushBack(&json_payload)
 								wg.Wait()
 
-								w.Write([]byte(result_groups[*trace_id].ToJSONString()))
+								result_as_string, result_as_string_errors := result_groups[*trace_id].ToJSONString()
+								if result_as_string_errors != nil {
+									fmt.Println(result_as_string_errors)
+								} else {
+									w.Write([]byte(*result_as_string))
+								}
 								delete(result_groups, *trace_id)
 							} else if *queue_mode == "GetAndRemoveFront" {
 								front := queue.GetAndRemoveFront()
 								if front == nil {
 									w.Write([]byte("{}"))
 								} else {
-									w.Write([]byte(front.ToJSONString()))
+									front_as_string, front_as_string_errors := front.ToJSONString()
+									if front_as_string_errors != nil {
+										fmt.Println(front_as_string_errors)
+									} else {
+										w.Write([]byte(*front_as_string))
+									}
 								}
 							} else if *queue_mode == "complete" {
 								result_groups[*trace_id] = json_payload
