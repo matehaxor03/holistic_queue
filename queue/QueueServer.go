@@ -136,7 +136,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 
 								result_as_string, result_as_string_errors := result_groups[*trace_id].ToJSONString()
 								if result_as_string_errors != nil {
-									fmt.Println(result_as_string_errors)
+									w.Write([]byte(result_as_string_errors[0].Error()))
 								} else {
 									w.Write([]byte(*result_as_string))
 								}
@@ -148,7 +148,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 								} else {
 									front_as_string, front_as_string_errors := front.ToJSONString()
 									if front_as_string_errors != nil {
-										fmt.Println(front_as_string_errors)
+										w.Write([]byte(front_as_string_errors[0].Error()))
 									} else {
 										w.Write([]byte(*front_as_string))
 									}
