@@ -16,7 +16,8 @@ type QueueServer struct {
 
 func NewQueueServer(port string, server_crt_path string, server_key_path string) (*QueueServer, []error) {
 	var errors []error
-	wait_groups := make(map[string]sync.WaitGroup)
+	wait_groups := make(map[string]*(sync.WaitGroup))
+	result_groups := make(map[string]class.Map)
 	//var this_holisic_queue_server *HolisticQueueServer
 	
 	database, database_errors := class.GetDatabase("holistic_read")
@@ -41,7 +42,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 		queues["Delete_" + table_name] = NewQueue()
 	}
 
-	queues["Get_Tables"] = NewQueue()
+	queues["GetTableNames"] = NewQueue()
 
 	//todo: add filters to fields
 	data := class.Map{
@@ -128,10 +129,12 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 							if *queue_mode == "PushBack" {
 								var wg sync.WaitGroup
 								wg.Add(1)
-								wait_groups[*trace_id] = wg
+								wait_groups[*trace_id] = &wg
 								queue.PushBack(&json_payload)
 								wg.Wait()
-								w.Write([]byte("ok"))
+
+								w.Write([]byte(result_groups[*trace_id].ToJSONString()))
+								delete(result_groups, *trace_id)
 							} else if *queue_mode == "GetAndRemoveFront" {
 								front := queue.GetAndRemoveFront()
 								if front == nil {
@@ -139,6 +142,10 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 								} else {
 									w.Write([]byte(front.ToJSONString()))
 								}
+							} else if *queue_mode == "complete" {
+								result_groups[*trace_id] = json_payload
+								(wait_groups[*trace_id]).Done()
+								delete(wait_groups, *trace_id)
 							} else {
 								fmt.Println(fmt.Sprintf("[queue_mode] not supported please implement: %s", *queue_mode))
 								w.Write([]byte(fmt.Sprintf("[queue_mode] not supported please implement: %s", *queue_mode)))
