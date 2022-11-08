@@ -120,6 +120,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 				if message_type_errors != nil {
 					w.Write([]byte("[queue] does not exist error"))
 				} else {
+					fmt.Println(*message_type)
 					queue, ok := queues[*message_type]
 					if ok {
 						queue_mode, queue_mode_errors := json_payload.GetString("[queue_mode]")
