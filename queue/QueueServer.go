@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"fmt"
 	"strings"
-	"encoding/json"
+	//"encoding/json"
 	"io/ioutil"
 	"sync"
 	class "github.com/matehaxor03/holistic_db_client/class"
@@ -17,7 +17,7 @@ type QueueServer struct {
 func NewQueueServer(port string, server_crt_path string, server_key_path string) (*QueueServer, []error) {
 	var errors []error
 	wait_groups := make(map[string]*(sync.WaitGroup))
-	result_groups := make(map[string]class.Map)
+	result_groups := make(map[string](*class.Map))
 	//var this_holisic_queue_server *HolisticQueueServer
 	
 	database, database_errors := class.GetDatabase("holistic_read")
@@ -104,69 +104,72 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 
 	processRequest := func(w http.ResponseWriter, req *http.Request) {
 		if req.Method == "POST" || req.Method == "PATCH" || req.Method == "PUT" {
-			json_payload := class.Map{}
 			body_payload, body_payload_error := ioutil.ReadAll(req.Body);
 			if body_payload_error != nil {
 				w.Write([]byte(body_payload_error.Error()))
 			} else {
-				json.Unmarshal([]byte(body_payload), &json_payload)
-				
-				fmt.Println(json_payload.Keys())
-				fmt.Println(string(body_payload))
-
-				message_type, message_type_errors := json_payload.GetString("[queue]")
-				trace_id, _ := json_payload.GetString("[trace_id]")
-
-				if message_type_errors != nil {
-					w.Write([]byte("[queue] does not exist error"))
+				json_payload, json_payload_errors := class.ParseJSON(string(body_payload))
+				if json_payload_errors != nil {
+					w.Write([]byte(fmt.Sprintf("%s", json_payload_errors)))
 				} else {
-					fmt.Println(*message_type)
-					queue, ok := queues[*message_type]
-					if ok {
-						queue_mode, queue_mode_errors := json_payload.GetString("[queue_mode]")
-						if queue_mode_errors != nil {
-							w.Write([]byte("[queue_mode] does not exist error"))
-						} else {
-							if *queue_mode == "PushBack" {
-								var wg sync.WaitGroup
-								wg.Add(1)
-								wait_groups[*trace_id] = &wg
-								queue.PushBack(&json_payload)
-								wg.Wait()
+					fmt.Println(json_payload.Keys())
+					fmt.Println(string(body_payload))
 
-								result_as_string, result_as_string_errors := result_groups[*trace_id].ToJSONString()
-								if result_as_string_errors != nil {
-									w.Write([]byte(result_as_string_errors[0].Error()))
-								} else {
-									w.Write([]byte(*result_as_string))
-								}
-								delete(result_groups, *trace_id)
-							} else if *queue_mode == "GetAndRemoveFront" {
-								front := queue.GetAndRemoveFront()
-								if front == nil {
-									w.Write([]byte("{}"))
-								} else {
-									front_as_string, front_as_string_errors := front.ToJSONString()
-									if front_as_string_errors != nil {
-										w.Write([]byte(front_as_string_errors[0].Error()))
-									} else {
-										w.Write([]byte(*front_as_string))
-									}
-								}
-							} else if *queue_mode == "complete" {
-								result_groups[*trace_id] = json_payload
-								(wait_groups[*trace_id]).Done()
-								delete(wait_groups, *trace_id)
-							} else {
-								fmt.Println(fmt.Sprintf("[queue_mode] not supported please implement: %s", *queue_mode))
-								w.Write([]byte(fmt.Sprintf("[queue_mode] not supported please implement: %s", *queue_mode)))
-							}
-						}
+					message_type, message_type_errors := json_payload.GetString("[queue]")
+					trace_id, _ := json_payload.GetString("[trace_id]")
+
+					if message_type_errors != nil {
+						w.Write([]byte("[queue] does not exist error"))
 					} else {
-						fmt.Println(fmt.Sprintf("[queue] not supported please implement: %s", *message_type))
-						w.Write([]byte(fmt.Sprintf("[queue] not supported please implement: %s", *message_type)))
+						fmt.Println(*message_type)
+						queue, ok := queues[*message_type]
+						if ok {
+							queue_mode, queue_mode_errors := json_payload.GetString("[queue_mode]")
+							if queue_mode_errors != nil {
+								w.Write([]byte("[queue_mode] does not exist error"))
+							} else {
+								if *queue_mode == "PushBack" {
+									var wg sync.WaitGroup
+									wg.Add(1)
+									wait_groups[*trace_id] = &wg
+									queue.PushBack(json_payload)
+									wg.Wait()
+
+									result_as_string, result_as_string_errors := result_groups[*trace_id].ToJSONString()
+									if result_as_string_errors != nil {
+										w.Write([]byte(result_as_string_errors[0].Error()))
+									} else {
+										w.Write([]byte(*result_as_string))
+									}
+									delete(result_groups, *trace_id)
+								} else if *queue_mode == "GetAndRemoveFront" {
+									front := queue.GetAndRemoveFront()
+									if front == nil {
+										w.Write([]byte("{}"))
+									} else {
+										front_as_string, front_as_string_errors := front.ToJSONString()
+										if front_as_string_errors != nil {
+											w.Write([]byte(front_as_string_errors[0].Error()))
+										} else {
+											w.Write([]byte(*front_as_string))
+										}
+									}
+								} else if *queue_mode == "complete" {
+									result_groups[*trace_id] = json_payload
+									(wait_groups[*trace_id]).Done()
+									delete(wait_groups, *trace_id)
+								} else {
+									fmt.Println(fmt.Sprintf("[queue_mode] not supported please implement: %s", *queue_mode))
+									w.Write([]byte(fmt.Sprintf("[queue_mode] not supported please implement: %s", *queue_mode)))
+								}
+							}
+						} else {
+							fmt.Println(fmt.Sprintf("[queue] not supported please implement: %s", *message_type))
+							w.Write([]byte(fmt.Sprintf("[queue] not supported please implement: %s", *message_type)))
+						}
 					}
 				}
+				//json.Unmarshal([]byte(body_payload), &json_payload)
 			}
 		} else {
 			w.Write([]byte(formatRequest(req)))
