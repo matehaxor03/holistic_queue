@@ -8,7 +8,7 @@ import (
 
 func main() {
 	var errors []error
-	queue_server, queue_server_errors := queue.NewQueueServer("5000", "server.crt", "server.key")
+	queue_server, queue_server_errors := queue.NewQueueServer("5000", "server.crt", "server.key", "127.0.0.1", "5002")
 	if queue_server_errors != nil {
 		errors = append(errors, queue_server_errors...)	
 	} else {

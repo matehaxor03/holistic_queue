@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"strings"
 	//"encoding/json"
+	"crypto/tls"
+	"bytes"
+	"time"
 	"io/ioutil"
 	"sync"
 	class "github.com/matehaxor03/holistic_db_client/class"
@@ -14,7 +17,7 @@ type QueueServer struct {
 	Start      			func() ([]error)
 }
 
-func NewQueueServer(port string, server_crt_path string, server_key_path string) (*QueueServer, []error) {
+func NewQueueServer(port string, server_crt_path string, server_key_path string, processor_domain_name string, processor_port string) (*QueueServer, []error) {
 	var errors []error
 	wait_groups := make(map[string]*(sync.WaitGroup))
 	result_groups := make(map[string](*class.Map))
@@ -44,6 +47,13 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 
 	queues["GetTableNames"] = NewQueue()
 
+
+	domain_name, domain_name_errors := class.NewDomainName(&processor_domain_name)
+	if domain_name_errors != nil {
+		errors = append(errors, domain_name_errors...)
+	}
+
+
 	//todo: add filters to fields
 	data := class.Map{
 		"[port]": class.Map{"value": class.CloneString(&port), "mandatory": true},
@@ -69,6 +79,17 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 	validate := func() []error {
 		return class.ValidateData(data, "HolisticQueueServer")
 	}
+
+	processor_url := fmt.Sprintf("https://%s:%s/", *(domain_name.GetDomainName()), processor_port)
+	transport_config := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	http_client := http.Client{
+		Timeout: 120 * time.Second,
+		Transport: transport_config,
+	}
+
 
 	/*
 	setHolisticQueueServer := func(holisic_queue_server *HolisticQueueServer) {
@@ -103,6 +124,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 	}
 
 	processRequest := func(w http.ResponseWriter, req *http.Request) {
+		var errors []error
 		if req.Method == "POST" || req.Method == "PATCH" || req.Method == "PUT" {
 			body_payload, body_payload_error := ioutil.ReadAll(req.Body);
 			if body_payload_error != nil {
@@ -133,6 +155,43 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 									wg.Add(1)
 									wait_groups[*trace_id] = &wg
 									queue.PushBack(json_payload)
+
+
+									// wakeup the processor
+									wakeup_payload := class.Map{}
+									wakeup_payload.SetString("[queue]", message_type)
+									wakeup_queue_mode := "WakeUp"
+									wakeup_payload.SetString("[queue_mode]", &wakeup_queue_mode)
+									wakeup_payload_as_string, wakeup_payload_as_string_errors := wakeup_payload.ToJSONString()
+
+									if wakeup_payload_as_string_errors != nil {
+										errors = append(errors, wakeup_payload_as_string_errors...)
+									}
+
+									wakeup_request_json_bytes := []byte(*wakeup_payload_as_string)
+									wakeup_request_json_reader := bytes.NewReader(wakeup_request_json_bytes)
+									wakeup_request, wakeup_request_error := http.NewRequest(http.MethodPost, processor_url, wakeup_request_json_reader)
+									if wakeup_request_error != nil {
+										errors = append(errors, wakeup_request_error)
+									}
+
+									wakeup_http_response, wakeup_http_response_error := http_client.Do(wakeup_request)
+									if wakeup_http_response_error != nil {
+										errors = append(errors, wakeup_http_response_error)
+									} 
+
+									wakeup_response_body_payload, wakeup_response_body_payload_error := ioutil.ReadAll(wakeup_http_response.Body)
+									if wakeup_response_body_payload_error != nil {
+										errors = append(errors, wakeup_response_body_payload_error)
+									} else {
+										fmt.Println(wakeup_response_body_payload)
+									}
+
+									if len(errors) > 0 {
+										w.Write([]byte(fmt.Sprintf("%s", errors)))
+										return
+									}
+
 									wg.Wait()
 
 									result_as_string, result_as_string_errors := result_groups[*trace_id].ToJSONString()
@@ -155,6 +214,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string)
 										}
 									}
 								} else if *queue_mode == "complete" {
+									json_payload.RemoveKey("[queue_mode]")
 									result_groups[*trace_id] = json_payload
 									(wait_groups[*trace_id]).Done()
 									delete(wait_groups, *trace_id)
