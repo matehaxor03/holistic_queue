@@ -215,6 +215,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 									}
 								} else if *queue_mode == "complete" {
 									json_payload.RemoveKey("[queue_mode]")
+									json_payload.RemoveKey("[queue]")
 									result_groups[*trace_id] = json_payload
 									(wait_groups[*trace_id]).Done()
 									delete(wait_groups, *trace_id)
