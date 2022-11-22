@@ -1,20 +1,20 @@
 package queue
 
 import (
-	"net/http"
 	"fmt"
+	"net/http"
 	"strings"
 	//"encoding/json"
-	"crypto/tls"
 	"bytes"
-	"time"
+	"crypto/tls"
+	class "github.com/matehaxor03/holistic_db_client/class"
 	"io/ioutil"
 	"sync"
-	class "github.com/matehaxor03/holistic_db_client/class"
+	"time"
 )
 
 type QueueServer struct {
-	Start      			func() ([]error)
+	Start func() []error
 }
 
 func NewQueueServer(port string, server_crt_path string, server_key_path string, processor_domain_name string, processor_port string) (*QueueServer, []error) {
@@ -22,7 +22,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	wait_groups := make(map[string]*(sync.WaitGroup))
 	result_groups := make(map[string](*class.Map))
 	//var this_holisic_queue_server *HolisticQueueServer
-	
+
 	database, database_errors := class.GetDatabase("holistic_read")
 	if database_errors != nil {
 		errors = append(errors, database_errors...)
@@ -31,7 +31,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	if len(errors) > 0 {
 		return nil, errors
 	}
-	
+
 	queues := make(map[string](*Queue))
 	table_names, table_names_errors := database.GetTableNames()
 	if table_names_errors != nil {
@@ -39,24 +39,22 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	for _, table_name := range *table_names {
-		queues["Create_" + table_name] = NewQueue()
-		queues["Read_" + table_name] = NewQueue()
-		queues["Update_" + table_name] = NewQueue()
-		queues["Delete_" + table_name] = NewQueue()
+		queues["Create_"+table_name] = NewQueue()
+		queues["Read_"+table_name] = NewQueue()
+		queues["Update_"+table_name] = NewQueue()
+		queues["Delete_"+table_name] = NewQueue()
 	}
 
 	queues["GetTableNames"] = NewQueue()
-
 
 	domain_name, domain_name_errors := class.NewDomainName(&processor_domain_name)
 	if domain_name_errors != nil {
 		errors = append(errors, domain_name_errors...)
 	}
 
-
 	//todo: add filters to fields
 	data := class.Map{
-		"[port]": class.Map{"value": class.CloneString(&port), "mandatory": true},
+		"[port]":            class.Map{"value": class.CloneString(&port), "mandatory": true},
 		"[server_crt_path]": class.Map{"value": class.CloneString(&server_crt_path), "mandatory": true},
 		"[server_key_path]": class.Map{"value": class.CloneString(&server_key_path), "mandatory": true},
 	}
@@ -86,24 +84,23 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	http_client := http.Client{
-		Timeout: 120 * time.Second,
+		Timeout:   120 * time.Second,
 		Transport: transport_config,
 	}
 
+	/*
+		setHolisticQueueServer := func(holisic_queue_server *HolisticQueueServer) {
+			this_holisic_queue_server = holisic_queue_server
+		}*/
 
 	/*
-	setHolisticQueueServer := func(holisic_queue_server *HolisticQueueServer) {
-		this_holisic_queue_server = holisic_queue_server
-	}*/
-
-	/*
-	getHolisticQueueServer := func() *HolisticQueueServer {
-		return this_holisic_queue_server
-	}*/
+		getHolisticQueueServer := func() *HolisticQueueServer {
+			return this_holisic_queue_server
+		}*/
 
 	formatRequest := func(r *http.Request) string {
 		var request []string
-	
+
 		url := fmt.Sprintf("%v %v %v", r.Method, r.URL, r.Proto)
 		request = append(request, url)
 		request = append(request, fmt.Sprintf("Host: %v", r.Host))
@@ -113,20 +110,20 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 				request = append(request, fmt.Sprintf("%v: %v", name, h))
 			}
 		}
-	
+
 		if r.Method == "POST" {
 			r.ParseForm()
 			request = append(request, "\n")
 			request = append(request, r.Form.Encode())
 		}
-	
+
 		return strings.Join(request, "\n")
 	}
 
 	processRequest := func(w http.ResponseWriter, req *http.Request) {
 		var errors []error
 		if req.Method == "POST" || req.Method == "PATCH" || req.Method == "PUT" {
-			body_payload, body_payload_error := ioutil.ReadAll(req.Body);
+			body_payload, body_payload_error := ioutil.ReadAll(req.Body)
 			if body_payload_error != nil {
 				w.Write([]byte(body_payload_error.Error()))
 			} else {
@@ -156,7 +153,6 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 									wait_groups[*trace_id] = &wg
 									queue.PushBack(json_payload)
 
-
 									// wakeup the processor
 									wakeup_payload := class.Map{}
 									wakeup_payload.SetString("[queue]", message_type)
@@ -178,7 +174,12 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 									wakeup_http_response, wakeup_http_response_error := http_client.Do(wakeup_request)
 									if wakeup_http_response_error != nil {
 										errors = append(errors, wakeup_http_response_error)
-									} 
+									}
+
+									if len(errors) > 0 {
+										w.Write([]byte(fmt.Sprintf("%s", errors)))
+										return
+									}
 
 									wakeup_response_body_payload, wakeup_response_body_payload_error := ioutil.ReadAll(wakeup_http_response.Body)
 									if wakeup_response_body_payload_error != nil {
@@ -242,7 +243,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			var errors []error
 			http.HandleFunc("/", processRequest)
 
-			err := http.ListenAndServeTLS(":" + *(getPort()), *(getServerCrtPath()), *(getServerKeyPath()), nil)
+			err := http.ListenAndServeTLS(":"+*(getPort()), *(getServerCrtPath()), *(getServerKeyPath()), nil)
 			if err != nil {
 				errors = append(errors, err)
 			}
