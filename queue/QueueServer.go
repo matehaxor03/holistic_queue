@@ -43,9 +43,11 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		queues["Read_"+table_name] = NewQueue()
 		queues["Update_"+table_name] = NewQueue()
 		queues["Delete_"+table_name] = NewQueue()
+		queues["GetSchema_"+table_name] = NewQueue()
 	}
 
 	queues["GetTableNames"] = NewQueue()
+	
 
 	domain_name, domain_name_errors := class.NewDomainName(&processor_domain_name)
 	if domain_name_errors != nil {
@@ -98,6 +100,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return this_holisic_queue_server
 		}*/
 
+		/*
 	formatRequest := func(r *http.Request) string {
 		var request []string
 
@@ -118,18 +121,20 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		return strings.Join(request, "\n")
-	}
+	}*/
 
 	processRequest := func(w http.ResponseWriter, req *http.Request) {
 		var errors []error
+		result := class.Map{}
+
 		if req.Method == "POST" || req.Method == "PATCH" || req.Method == "PUT" {
 			body_payload, body_payload_error := ioutil.ReadAll(req.Body)
 			if body_payload_error != nil {
-				w.Write([]byte(body_payload_error.Error()))
+				errors = append(errors, body_payload_error)
 			} else {
 				json_payload, json_payload_errors := class.ParseJSON(string(body_payload))
 				if json_payload_errors != nil {
-					w.Write([]byte(fmt.Sprintf("%s", json_payload_errors)))
+					errors = append(errors, json_payload_errors...)
 				} else {
 					fmt.Println(json_payload.Keys())
 					fmt.Println(string(body_payload))
@@ -138,9 +143,10 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 					trace_id, _ := json_payload.GetString("[trace_id]")
 
 					if message_type_errors != nil {
-						w.Write([]byte("[queue] does not exist error"))
+						errors = append(errors, message_type_errors...)
+					} else if message_type == nil {
+						errors = append(errors, fmt.Errorf("[queue] has nil value"))
 					} else {
-						fmt.Println(*message_type)
 						queue, ok := queues[*message_type]
 						if ok {
 							queue_mode, queue_mode_errors := json_payload.GetString("[queue_mode]")
@@ -195,25 +201,13 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 
 									wg.Wait()
 
-									result_as_string, result_as_string_errors := result_groups[*trace_id].ToJSONString()
-									if result_as_string_errors != nil {
-										w.Write([]byte(result_as_string_errors[0].Error()))
-									} else {
-										w.Write([]byte(*result_as_string))
-									}
+									result = *(result_groups[*trace_id])
 									delete(result_groups, *trace_id)
 								} else if *queue_mode == "GetAndRemoveFront" {
 									front := queue.GetAndRemoveFront()
-									if front == nil {
-										w.Write([]byte("{}"))
-									} else {
-										front_as_string, front_as_string_errors := front.ToJSONString()
-										if front_as_string_errors != nil {
-											w.Write([]byte(front_as_string_errors[0].Error()))
-										} else {
-											w.Write([]byte(*front_as_string))
-										}
-									}
+									if front != nil {
+										result = *front
+									} 
 								} else if *queue_mode == "complete" {
 									json_payload.RemoveKey("[queue_mode]")
 									json_payload.RemoveKey("[queue]")
@@ -234,7 +228,23 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 				//json.Unmarshal([]byte(body_payload), &json_payload)
 			}
 		} else {
-			w.Write([]byte(formatRequest(req)))
+			errors = append(errors, fmt.Errorf("request method not supported: " + req.Method))
+		}
+
+		if len(errors) > 0 {
+			result.SetNil("data")
+			result.SetErrors("[errors]", &errors)
+		}
+
+		result_as_string, result_as_string_errors := result.ToJSONString()
+		if result_as_string_errors != nil {
+			errors = append(errors, result_as_string_errors...)
+		}
+		
+		if result_as_string_errors == nil {
+			w.Write([]byte(*result_as_string))
+		} else {
+			w.Write([]byte(fmt.Sprintf("{\"[errors]\":\"%s\", \"data\":null}", strings.ReplaceAll(fmt.Sprintf("%s", result_as_string_errors), "\"", "\\\""))))
 		}
 	}
 
