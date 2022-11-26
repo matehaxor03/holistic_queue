@@ -123,114 +123,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		return strings.Join(request, "\n")
 	}*/
 
-	processRequest := func(w http.ResponseWriter, req *http.Request) {
-		var errors []error
-		result := class.Map{}
-
-		if req.Method == "POST" || req.Method == "PATCH" || req.Method == "PUT" {
-			body_payload, body_payload_error := ioutil.ReadAll(req.Body)
-			if body_payload_error != nil {
-				errors = append(errors, body_payload_error)
-			} else {
-				json_payload, json_payload_errors := class.ParseJSON(string(body_payload))
-				if json_payload_errors != nil {
-					errors = append(errors, json_payload_errors...)
-				} else {
-					fmt.Println(json_payload.Keys())
-					fmt.Println(string(body_payload))
-
-					message_type, message_type_errors := json_payload.GetString("[queue]")
-					trace_id, _ := json_payload.GetString("[trace_id]")
-
-					if message_type_errors != nil {
-						errors = append(errors, message_type_errors...)
-					} else if message_type == nil {
-						errors = append(errors, fmt.Errorf("[queue] has nil value"))
-					} else {
-						queue, ok := queues[*message_type]
-						if ok {
-							queue_mode, queue_mode_errors := json_payload.GetString("[queue_mode]")
-							if queue_mode_errors != nil {
-								w.Write([]byte("[queue_mode] does not exist error"))
-							} else {
-								if *queue_mode == "PushBack" {
-									var wg sync.WaitGroup
-									wg.Add(1)
-									wait_groups[*trace_id] = &wg
-									queue.PushBack(json_payload)
-
-									// wakeup the processor
-									wakeup_payload := class.Map{}
-									wakeup_payload.SetString("[queue]", message_type)
-									wakeup_queue_mode := "WakeUp"
-									wakeup_payload.SetString("[queue_mode]", &wakeup_queue_mode)
-									wakeup_payload_as_string, wakeup_payload_as_string_errors := wakeup_payload.ToJSONString()
-
-									if wakeup_payload_as_string_errors != nil {
-										errors = append(errors, wakeup_payload_as_string_errors...)
-									}
-
-									wakeup_request_json_bytes := []byte(*wakeup_payload_as_string)
-									wakeup_request_json_reader := bytes.NewReader(wakeup_request_json_bytes)
-									wakeup_request, wakeup_request_error := http.NewRequest(http.MethodPost, processor_url, wakeup_request_json_reader)
-									if wakeup_request_error != nil {
-										errors = append(errors, wakeup_request_error)
-									}
-
-									wakeup_http_response, wakeup_http_response_error := http_client.Do(wakeup_request)
-									if wakeup_http_response_error != nil {
-										errors = append(errors, wakeup_http_response_error)
-									}
-
-									if len(errors) > 0 {
-										w.Write([]byte(fmt.Sprintf("%s", errors)))
-										return
-									}
-
-									wakeup_response_body_payload, wakeup_response_body_payload_error := ioutil.ReadAll(wakeup_http_response.Body)
-									if wakeup_response_body_payload_error != nil {
-										errors = append(errors, wakeup_response_body_payload_error)
-									} else {
-										fmt.Println(wakeup_response_body_payload)
-									}
-
-									if len(errors) > 0 {
-										w.Write([]byte(fmt.Sprintf("%s", errors)))
-										return
-									}
-
-									wg.Wait()
-
-									result = *(result_groups[*trace_id])
-									delete(result_groups, *trace_id)
-								} else if *queue_mode == "GetAndRemoveFront" {
-									front := queue.GetAndRemoveFront()
-									if front != nil {
-										result = *front
-									} 
-								} else if *queue_mode == "complete" {
-									json_payload.RemoveKey("[queue_mode]")
-									json_payload.RemoveKey("[queue]")
-									result_groups[*trace_id] = json_payload
-									(wait_groups[*trace_id]).Done()
-									delete(wait_groups, *trace_id)
-								} else {
-									fmt.Println(fmt.Sprintf("[queue_mode] not supported please implement: %s", *queue_mode))
-									w.Write([]byte(fmt.Sprintf("[queue_mode] not supported please implement: %s", *queue_mode)))
-								}
-							}
-						} else {
-							fmt.Println(fmt.Sprintf("[queue] not supported please implement: %s", *message_type))
-							w.Write([]byte(fmt.Sprintf("[queue] not supported please implement: %s", *message_type)))
-						}
-					}
-				}
-				//json.Unmarshal([]byte(body_payload), &json_payload)
-			}
-		} else {
-			errors = append(errors, fmt.Errorf("request method not supported: " + req.Method))
-		}
-
+	write_response := func(w http.ResponseWriter, result class.Map, errors []error) {
 		if len(errors) > 0 {
 			result.SetNil("data")
 			result.SetErrors("[errors]", &errors)
@@ -246,6 +139,159 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		} else {
 			w.Write([]byte(fmt.Sprintf("{\"[errors]\":\"%s\", \"data\":null}", strings.ReplaceAll(fmt.Sprintf("%s", result_as_string_errors), "\"", "\\\""))))
 		}
+	}
+
+	processRequest := func(w http.ResponseWriter, req *http.Request) {
+		var errors []error
+		result := class.Map{}
+
+		if !(req.Method == "POST" || req.Method == "PATCH" || req.Method == "PUT") {
+			errors = append(errors, fmt.Errorf("request method not supported: " + req.Method))
+		}
+
+		if len(errors) > 0 {
+			write_response(w, result, errors)
+			return
+		}
+
+		body_payload, body_payload_error := ioutil.ReadAll(req.Body)
+		if body_payload_error != nil {
+			errors = append(errors, body_payload_error)
+		}
+
+		if len(errors) > 0 {
+			write_response(w, result, errors)
+			return
+		}
+
+		
+		json_payload, json_payload_errors := class.ParseJSON(string(body_payload))
+		if json_payload_errors != nil {
+			errors = append(errors, json_payload_errors...)
+		}
+
+		if json_payload == nil {
+			errors = append(errors, fmt.Errorf("json_payload is nil"))
+		}
+
+		if len(errors) > 0 {
+			write_response(w, result, errors)
+			return
+		}
+
+		queue_type, queue_type_errors := json_payload.GetString("[queue]")
+		trace_id, trace_id_errors := json_payload.GetString("[trace_id]")
+
+		if queue_type_errors != nil {
+			errors = append(errors, queue_type_errors...)
+		}
+
+		if queue_type == nil {
+			errors = append(errors, fmt.Errorf("[queue] has nil value"))
+		}
+
+		if trace_id_errors != nil {
+			errors = append(errors, trace_id_errors...)
+		}
+
+		if trace_id == nil {
+			errors = append(errors, fmt.Errorf("[trace_id] has nil value"))
+		}
+		
+
+		if len(errors) > 0 {
+			write_response(w, result, errors)
+			return
+		}
+
+		fmt.Println(json_payload.Keys())
+		fmt.Println(string(body_payload))
+
+		queue, queue_found := queues[*queue_type]
+		if !queue_found {	
+			errors = append(errors, fmt.Errorf("[queue] %s not found", *queue_type))
+		}
+
+		if queue == nil {
+			errors = append(errors, fmt.Errorf("[queue] %s is nil", *queue_type))
+		}
+
+		queue_mode, queue_mode_errors := json_payload.GetString("[queue_mode]")
+		if queue_mode_errors != nil {
+			errors = append(errors, queue_mode_errors...)
+		} 
+
+		if len(errors) > 0 {
+			write_response(w, result, errors)
+			return
+		}
+
+		if *queue_mode == "PushBack" {
+			var wg sync.WaitGroup
+			wg.Add(1)
+			wait_groups[*trace_id] = &wg
+			queue.PushBack(json_payload)
+
+			// wakeup the processor
+			wakeup_payload := class.Map{}
+			wakeup_payload.SetString("[queue]", queue_type)
+			wakeup_queue_mode := "WakeUp"
+			wakeup_payload.SetString("[queue_mode]", &wakeup_queue_mode)
+			wakeup_payload_as_string, wakeup_payload_as_string_errors := wakeup_payload.ToJSONString()
+
+			if wakeup_payload_as_string_errors != nil {
+				errors = append(errors, wakeup_payload_as_string_errors...)
+			}
+
+			wakeup_request_json_bytes := []byte(*wakeup_payload_as_string)
+			wakeup_request_json_reader := bytes.NewReader(wakeup_request_json_bytes)
+			wakeup_request, wakeup_request_error := http.NewRequest(http.MethodPost, processor_url, wakeup_request_json_reader)
+			if wakeup_request_error != nil {
+				errors = append(errors, wakeup_request_error)
+			}
+
+			wakeup_http_response, wakeup_http_response_error := http_client.Do(wakeup_request)
+			if wakeup_http_response_error != nil {
+				errors = append(errors, wakeup_http_response_error)
+			}
+
+			if len(errors) > 0 {
+				write_response(w, result, errors)
+				return
+			}
+
+			wakeup_response_body_payload, wakeup_response_body_payload_error := ioutil.ReadAll(wakeup_http_response.Body)
+			if wakeup_response_body_payload_error != nil {
+				errors = append(errors, wakeup_response_body_payload_error)
+			} else {
+				fmt.Println(wakeup_response_body_payload)
+			}
+
+			if len(errors) > 0 {
+				write_response(w, result, errors)
+				return
+			}
+
+			wg.Wait()
+
+			result = *(result_groups[*trace_id])
+			delete(result_groups, *trace_id)
+		} else if *queue_mode == "GetAndRemoveFront" {
+			front := queue.GetAndRemoveFront()
+			if front != nil {
+				result = *front
+			} 
+		} else if *queue_mode == "complete" {
+			json_payload.RemoveKey("[queue_mode]")
+			json_payload.RemoveKey("[queue]")
+			result_groups[*trace_id] = json_payload
+			(wait_groups[*trace_id]).Done()
+			delete(wait_groups, *trace_id)
+		} else {
+			errors = append(errors, fmt.Errorf("[queue_mode] not supported please implement: %s", *queue_mode))
+		}
+	
+		write_response(w, result, errors)
 	}
 
 	x := QueueServer{
