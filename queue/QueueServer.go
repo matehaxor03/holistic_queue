@@ -141,6 +141,55 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 	}
 
+	wakeup_processor := func(queue_type *string) []error {
+		var errors []error
+
+		wakeup_payload := class.Map{}
+		wakeup_payload.SetString("[queue]", queue_type)
+		wakeup_queue_mode := "WakeUp"
+		wakeup_payload.SetString("[queue_mode]", &wakeup_queue_mode)
+		wakeup_payload_as_string, wakeup_payload_as_string_errors := wakeup_payload.ToJSONString()
+
+		if wakeup_payload_as_string_errors != nil {
+			errors = append(errors, wakeup_payload_as_string_errors...)
+		}
+
+		if len(errors) > 0 {
+			return errors
+		}
+
+		wakeup_request_json_bytes := []byte(*wakeup_payload_as_string)
+		wakeup_request_json_reader := bytes.NewReader(wakeup_request_json_bytes)
+		wakeup_request, wakeup_request_error := http.NewRequest(http.MethodPost, processor_url, wakeup_request_json_reader)
+		if wakeup_request_error != nil {
+			errors = append(errors, wakeup_request_error)
+		}
+
+		wakeup_http_response, wakeup_http_response_error := http_client.Do(wakeup_request)
+		if wakeup_http_response_error != nil {
+			errors = append(errors, wakeup_http_response_error)
+		}
+
+		if len(errors) > 0 {
+			return errors
+		}
+
+		wakeup_response_body_payload, wakeup_response_body_payload_error := ioutil.ReadAll(wakeup_http_response.Body)
+		if wakeup_response_body_payload_error != nil {
+			errors = append(errors, wakeup_response_body_payload_error)
+		} else if wakeup_response_body_payload == nil {
+			errors = append(errors, fmt.Errorf("response to wakeup processor is nil"))
+		} else {
+			fmt.Println(wakeup_response_body_payload)
+		}
+
+		if len(errors) > 0 {
+			return errors
+		}
+
+		return nil
+	}
+
 	processRequest := func(w http.ResponseWriter, req *http.Request) {
 		var errors []error
 		result := class.Map{}
@@ -232,48 +281,12 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			wait_groups[*trace_id] = &wg
 			queue.PushBack(json_payload)
 
-			// wakeup the processor
-			wakeup_payload := class.Map{}
-			wakeup_payload.SetString("[queue]", queue_type)
-			wakeup_queue_mode := "WakeUp"
-			wakeup_payload.SetString("[queue_mode]", &wakeup_queue_mode)
-			wakeup_payload_as_string, wakeup_payload_as_string_errors := wakeup_payload.ToJSONString()
+			wakeup_processor_errors := wakeup_processor(queue_type)
+			if wakeup_processor_errors != nil {
 
-			if wakeup_payload_as_string_errors != nil {
-				errors = append(errors, wakeup_payload_as_string_errors...)
-			}
-
-			wakeup_request_json_bytes := []byte(*wakeup_payload_as_string)
-			wakeup_request_json_reader := bytes.NewReader(wakeup_request_json_bytes)
-			wakeup_request, wakeup_request_error := http.NewRequest(http.MethodPost, processor_url, wakeup_request_json_reader)
-			if wakeup_request_error != nil {
-				errors = append(errors, wakeup_request_error)
-			}
-
-			wakeup_http_response, wakeup_http_response_error := http_client.Do(wakeup_request)
-			if wakeup_http_response_error != nil {
-				errors = append(errors, wakeup_http_response_error)
-			}
-
-			if len(errors) > 0 {
-				write_response(w, result, errors)
-				return
-			}
-
-			wakeup_response_body_payload, wakeup_response_body_payload_error := ioutil.ReadAll(wakeup_http_response.Body)
-			if wakeup_response_body_payload_error != nil {
-				errors = append(errors, wakeup_response_body_payload_error)
-			} else {
-				fmt.Println(wakeup_response_body_payload)
-			}
-
-			if len(errors) > 0 {
-				write_response(w, result, errors)
-				return
-			}
+			}			
 
 			wg.Wait()
-
 			result = *(result_groups[*trace_id])
 			delete(result_groups, *trace_id)
 		} else if *queue_mode == "GetAndRemoveFront" {
