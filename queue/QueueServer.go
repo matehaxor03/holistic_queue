@@ -49,7 +49,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	queues["GetTableNames"] = NewQueue()
 	
 
-	domain_name, domain_name_errors := class.NewDomainName(&processor_domain_name)
+	domain_name, domain_name_errors := class.NewDomainName(processor_domain_name)
 	if domain_name_errors != nil {
 		errors = append(errors, domain_name_errors...)
 	}
@@ -61,26 +61,55 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		"[server_key_path]": class.Map{"value": class.CloneString(&server_key_path), "mandatory": true},
 	}
 
-	getPort := func() *string {
-		port, _ := data.M("[port]").GetString("value")
-		return class.CloneString(port)
+	getPort := func() (string, []error) {
+		temp_port_map, temp_port_map_errors := data.GetMap("[port]")
+		if temp_port_map_errors != nil {
+			return "", temp_port_map_errors
+		}
+
+		temp_port, temp_port_errors := temp_port_map.GetString("value")
+		if temp_port_errors != nil {
+			return "", temp_port_errors
+		}
+		return *temp_port, nil
 	}
 
-	getServerCrtPath := func() *string {
-		crt, _ := data.M("[server_crt_path]").GetString("value")
-		return class.CloneString(crt)
+	getServerCrtPath := func() (string, []error) {
+		x_map, x_map_errors := data.GetMap("[server_crt_path]")
+		if x_map_errors != nil {
+			return "", x_map_errors
+		}
+
+		temp_x, temp_x_errors := x_map.GetString("value")
+		if temp_x_errors != nil {
+			return "", temp_x_errors
+		}
+		return *temp_x, nil
 	}
 
-	getServerKeyPath := func() *string {
-		key, _ := data.M("[server_key_path]").GetString("value")
-		return class.CloneString(key)
+	getServerKeyPath := func() (string, []error) {
+		x_map, x_map_errors := data.GetMap("[server_key_path]")
+		if x_map_errors != nil {
+			return "", x_map_errors
+		}
+
+		temp_x, temp_x_errors := x_map.GetString("value")
+		if temp_x_errors != nil {
+			return "", temp_x_errors
+		}
+		return *temp_x, nil
 	}
 
 	validate := func() []error {
 		return class.ValidateData(data, "HolisticQueueServer")
 	}
 
-	processor_url := fmt.Sprintf("https://%s:%s/", *(domain_name.GetDomainName()), processor_port)
+	domain_name_value, domain_name_value_errors := domain_name.GetDomainName()
+	if domain_name_value_errors != nil {
+		return nil, domain_name_value_errors
+	}
+
+	processor_url := fmt.Sprintf("https://%s:%s/", domain_name_value, processor_port)
 	transport_config := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
@@ -248,11 +277,11 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		
 
 		if len(process_request_errors) > 0 {
-			//fmt.Println("error " + string(body_payload))
+			fmt.Println("error " + string(body_payload))
 			write_response(w, result, process_request_errors)
 			return
 		} else {
-			fmt.Println("no error " + string(body_payload))
+			//fmt.Println("no error " + string(body_payload))
 		}
 
 		queue, queue_found := queues[*queue_type]
@@ -328,7 +357,22 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			var start_server_errors []error
 			http.HandleFunc("/", processRequest)
 
-			err := http.ListenAndServeTLS(":"+*(getPort()), *(getServerCrtPath()), *(getServerKeyPath()), nil)
+			temp_port, temp_port_errors := getPort()
+			if temp_port_errors != nil {
+				return temp_port_errors
+			}
+
+			temp_server_crt_path, temp_server_crt_path_errors := getServerCrtPath()
+			if temp_server_crt_path_errors != nil {
+				return temp_server_crt_path_errors
+			}
+
+			temp_server_key_path, temp_server_key_path_errors := getServerKeyPath()
+			if temp_server_key_path_errors != nil {
+				return temp_server_key_path_errors
+			}
+
+			err := http.ListenAndServeTLS(":"+ temp_port, temp_server_crt_path, temp_server_key_path, nil)
 			if err != nil {
 				start_server_errors = append(start_server_errors, err)
 			}
