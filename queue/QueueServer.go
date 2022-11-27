@@ -56,9 +56,13 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 
 	//todo: add filters to fields
 	data := class.Map{
-		"[port]":            class.Map{"value": class.CloneString(&port), "mandatory": true},
-		"[server_crt_path]": class.Map{"value": class.CloneString(&server_crt_path), "mandatory": true},
-		"[server_key_path]": class.Map{"value": class.CloneString(&server_key_path), "mandatory": true},
+		"[port]":            class.Map{"value": &port, "mandatory": true},
+		"[server_crt_path]": class.Map{"value": &server_crt_path, "mandatory": true},
+		"[server_key_path]": class.Map{"value": &server_key_path, "mandatory": true},
+	}
+
+	getData := func() *class.Map {
+		return &data
 	}
 
 	getPort := func() (string, []error) {
@@ -101,7 +105,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	validate := func() []error {
-		return class.ValidateData(data, "HolisticQueueServer")
+		return class.ValidateData(getData(), "HolisticQueueServer")
 	}
 
 	domain_name_value, domain_name_value_errors := domain_name.GetDomainName()
