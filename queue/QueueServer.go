@@ -123,17 +123,18 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		return strings.Join(request, "\n")
 	}*/
 
-	write_response := func(w http.ResponseWriter, result class.Map, errors []error) {
-		if len(errors) > 0 {
+	write_response := func(w http.ResponseWriter, result class.Map, write_response_errors []error) {
+		if len(write_response_errors) > 0 {
 			result.SetNil("data")
-			result.SetErrors("[errors]", &errors)
+			result.SetErrors("[errors]", &write_response_errors)
 		}
 
 		result_as_string, result_as_string_errors := result.ToJSONString()
 		if result_as_string_errors != nil {
-			errors = append(errors, result_as_string_errors...)
+			write_response_errors = append(write_response_errors, result_as_string_errors...)
 		}
 		
+		w.Header().Set("Content-Type", "application/json")
 		if result_as_string_errors == nil {
 			w.Write([]byte(*result_as_string))
 		} else {
@@ -142,7 +143,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	wakeup_processor := func(queue_type *string) []error {
-		var errors []error
+		var wakeup_processor_errors []error
 
 		wakeup_payload := class.Map{}
 		wakeup_payload.SetString("[queue]", queue_type)
@@ -151,80 +152,78 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		wakeup_payload_as_string, wakeup_payload_as_string_errors := wakeup_payload.ToJSONString()
 
 		if wakeup_payload_as_string_errors != nil {
-			errors = append(errors, wakeup_payload_as_string_errors...)
+			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_payload_as_string_errors...)
 		}
 
-		if len(errors) > 0 {
-			return errors
+		if len(wakeup_processor_errors) > 0 {
+			return wakeup_processor_errors
 		}
 
 		wakeup_request_json_bytes := []byte(*wakeup_payload_as_string)
 		wakeup_request_json_reader := bytes.NewReader(wakeup_request_json_bytes)
 		wakeup_request, wakeup_request_error := http.NewRequest(http.MethodPost, processor_url, wakeup_request_json_reader)
 		if wakeup_request_error != nil {
-			errors = append(errors, wakeup_request_error)
+			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_request_error)
 		}
 
 		wakeup_http_response, wakeup_http_response_error := http_client.Do(wakeup_request)
 		if wakeup_http_response_error != nil {
-			errors = append(errors, wakeup_http_response_error)
+			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_http_response_error)
 		}
 
-		if len(errors) > 0 {
-			return errors
+		if len(wakeup_processor_errors) > 0 {
+			return wakeup_processor_errors
 		}
 
 		wakeup_response_body_payload, wakeup_response_body_payload_error := ioutil.ReadAll(wakeup_http_response.Body)
 		if wakeup_response_body_payload_error != nil {
-			errors = append(errors, wakeup_response_body_payload_error)
+			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_response_body_payload_error)
 		} else if wakeup_response_body_payload == nil {
-			errors = append(errors, fmt.Errorf("response to wakeup processor is nil"))
-		} else {
-			fmt.Println(wakeup_response_body_payload)
-		}
+			wakeup_processor_errors = append(wakeup_processor_errors, fmt.Errorf("response to wakeup processor is nil"))
+		} 
 
-		if len(errors) > 0 {
-			return errors
+		if len(wakeup_processor_errors) > 0 {
+			return wakeup_processor_errors
 		}
 
 		return nil
 	}
 
 	processRequest := func(w http.ResponseWriter, req *http.Request) {
-		var errors []error
+		var process_request_errors []error
 		result := class.Map{}
 
 		if !(req.Method == "POST" || req.Method == "PATCH" || req.Method == "PUT") {
-			errors = append(errors, fmt.Errorf("request method not supported: " + req.Method))
+			process_request_errors = append(process_request_errors, fmt.Errorf("request method not supported: " + req.Method))
 		}
 
-		if len(errors) > 0 {
-			write_response(w, result, errors)
+		if len(process_request_errors) > 0 {
+			write_response(w, result, process_request_errors)
 			return
 		}
 
 		body_payload, body_payload_error := ioutil.ReadAll(req.Body)
 		if body_payload_error != nil {
-			errors = append(errors, body_payload_error)
+			process_request_errors = append(process_request_errors, body_payload_error)
 		}
 
-		if len(errors) > 0 {
-			write_response(w, result, errors)
+		if len(process_request_errors) > 0 {
+			write_response(w, result, process_request_errors)
 			return
 		}
 
 		
 		json_payload, json_payload_errors := class.ParseJSON(string(body_payload))
 		if json_payload_errors != nil {
-			errors = append(errors, json_payload_errors...)
+			process_request_errors = append(process_request_errors, json_payload_errors...)
 		}
 
 		if json_payload == nil {
-			errors = append(errors, fmt.Errorf("json_payload is nil"))
+			process_request_errors = append(process_request_errors, fmt.Errorf("json_payload is nil"))
 		}
 
-		if len(errors) > 0 {
-			write_response(w, result, errors)
+		if len(process_request_errors) > 0 {
+			write_response(w, result, process_request_errors)
 			return
 		}
 
@@ -232,46 +231,46 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		trace_id, trace_id_errors := json_payload.GetString("[trace_id]")
 
 		if queue_type_errors != nil {
-			errors = append(errors, queue_type_errors...)
+			process_request_errors = append(process_request_errors, queue_type_errors...)
 		}
 
 		if queue_type == nil {
-			errors = append(errors, fmt.Errorf("[queue] has nil value"))
+			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] has nil value"))
 		}
 
 		if trace_id_errors != nil {
-			errors = append(errors, trace_id_errors...)
+			process_request_errors = append(process_request_errors, trace_id_errors...)
 		}
 
 		if trace_id == nil {
-			errors = append(errors, fmt.Errorf("[trace_id] has nil value"))
+			process_request_errors = append(process_request_errors, fmt.Errorf("[trace_id] has nil value"))
 		}
 		
 
-		if len(errors) > 0 {
-			write_response(w, result, errors)
+		if len(process_request_errors) > 0 {
+			//fmt.Println("error " + string(body_payload))
+			write_response(w, result, process_request_errors)
 			return
+		} else {
+			fmt.Println("no error " + string(body_payload))
 		}
-
-		fmt.Println(json_payload.Keys())
-		fmt.Println(string(body_payload))
 
 		queue, queue_found := queues[*queue_type]
 		if !queue_found {	
-			errors = append(errors, fmt.Errorf("[queue] %s not found", *queue_type))
+			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s not found", *queue_type))
 		}
 
 		if queue == nil {
-			errors = append(errors, fmt.Errorf("[queue] %s is nil", *queue_type))
+			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s is nil", *queue_type))
 		}
 
 		queue_mode, queue_mode_errors := json_payload.GetString("[queue_mode]")
 		if queue_mode_errors != nil {
-			errors = append(errors, queue_mode_errors...)
+			process_request_errors = append(process_request_errors, queue_mode_errors...)
 		} 
 
-		if len(errors) > 0 {
-			write_response(w, result, errors)
+		if len(process_request_errors) > 0 {
+			write_response(w, result, process_request_errors)
 			return
 		}
 
@@ -283,11 +282,28 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 
 			wakeup_processor_errors := wakeup_processor(queue_type)
 			if wakeup_processor_errors != nil {
+				process_request_errors = append(process_request_errors, wakeup_processor_errors...)
+			}	
+			
+			if len(process_request_errors) > 0 {
+				write_response(w, result, process_request_errors)
+				return
+			}
 
-			}			
+			result_ptr, found := result_groups[*trace_id]
+			if !found {
+				fmt.Println("waiting")
+				wg.Wait()
+				fmt.Println("waked_up")
+				result_ptr = result_groups[*trace_id]
+			} else {
+				fmt.Println("result found before waiting")
+			}
 
-			wg.Wait()
-			result = *(result_groups[*trace_id])
+			result = *result_ptr
+
+			//wg.Wait()
+			//result = *(result_groups[*trace_id])
 			delete(result_groups, *trace_id)
 		} else if *queue_mode == "GetAndRemoveFront" {
 			front := queue.GetAndRemoveFront()
@@ -301,24 +317,24 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			(wait_groups[*trace_id]).Done()
 			delete(wait_groups, *trace_id)
 		} else {
-			errors = append(errors, fmt.Errorf("[queue_mode] not supported please implement: %s", *queue_mode))
+			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", *queue_mode))
 		}
 	
-		write_response(w, result, errors)
+		write_response(w, result, process_request_errors)
 	}
 
 	x := QueueServer{
 		Start: func() []error {
-			var errors []error
+			var start_server_errors []error
 			http.HandleFunc("/", processRequest)
 
 			err := http.ListenAndServeTLS(":"+*(getPort()), *(getServerCrtPath()), *(getServerKeyPath()), nil)
 			if err != nil {
-				errors = append(errors, err)
+				start_server_errors = append(start_server_errors, err)
 			}
 
-			if len(errors) > 0 {
-				return errors
+			if len(start_server_errors) > 0 {
+				return start_server_errors
 			}
 
 			return nil
