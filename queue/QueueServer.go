@@ -18,22 +18,29 @@ type QueueServer struct {
 }
 
 func NewQueueServer(port string, server_crt_path string, server_key_path string, processor_domain_name string, processor_port string) (*QueueServer, []error) {
+	struct_type := "*queue.QueueServer"
 	var errors []error
 	wait_groups := make(map[string]*(sync.WaitGroup))
 	result_groups := make(map[string](*class.Map))
 	//var this_holisic_queue_server *HolisticQueueServer
 
-	database, database_errors := class.GetDatabase("holistic_read")
-	if database_errors != nil {
-		errors = append(errors, database_errors...)
+	client_manager, client_manager_errors := class.NewClientManager()
+	if client_manager_errors != nil {
+		return nil, client_manager_errors
 	}
 
-	if len(errors) > 0 {
-		return nil, errors
+	test_read_client, test_read_client_errors := client_manager.GetClient("holistic_db_config:127.0.0.1:3306:holistic:holistic_read")
+	if test_read_client_errors != nil {
+		return nil, test_read_client_errors
+	}
+	
+	test_read_database, test_read_database_errors := test_read_client.GetDatabase()
+	if test_read_database_errors != nil {
+		return nil, test_read_database_errors
 	}
 
 	queues := make(map[string](*Queue))
-	table_names, table_names_errors := database.GetTableNames()
+	table_names, table_names_errors := test_read_database.GetTableNames()
 	if table_names_errors != nil {
 		return nil, table_names_errors
 	}
@@ -56,53 +63,49 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 
 	//todo: add filters to fields
 	data := class.Map{
-		"[port]":            class.Map{"value": &port, "mandatory": true},
-		"[server_crt_path]": class.Map{"value": &server_crt_path, "mandatory": true},
-		"[server_key_path]": class.Map{"value": &server_key_path, "mandatory": true},
+		"[fields]": class.Map{},
+		"[schema]": class.Map{},
+		"[system_fields]": class.Map{
+			"[port]":&port,
+			"[server_crt_path]":&server_crt_path,
+			"[server_key_path]":&server_key_path,
+		},
+		"[system_schema]":class.Map{
+			"[port]": class.Map{"type":"string","mandatory": true},
+			"[server_crt_path]": class.Map{"type":"string","mandatory": true},
+			"[server_key_path]": class.Map{"type":"string", "mandatory": true},
+		},
 	}
 
 	getData := func() *class.Map {
 		return &data
 	}
 
+	
 	getPort := func() (string, []error) {
-		temp_port_map, temp_port_map_errors := data.GetMap("[port]")
-		if temp_port_map_errors != nil {
-			return "", temp_port_map_errors
+		temp_value, temp_value_errors := class.GetField(struct_type, getData(), "[system_schema]", "[system_fields]", "[port]", "string")
+		if temp_value_errors != nil {
+			return "",temp_value_errors
 		}
-
-		temp_port, temp_port_errors := temp_port_map.GetString("value")
-		if temp_port_errors != nil {
-			return "", temp_port_errors
-		}
-		return *temp_port, nil
+		return temp_value.(string), nil
 	}
 
 	getServerCrtPath := func() (string, []error) {
-		x_map, x_map_errors := data.GetMap("[server_crt_path]")
-		if x_map_errors != nil {
-			return "", x_map_errors
+		temp_value, temp_value_errors := class.GetField(struct_type, getData(), "[system_schema]", "[system_fields]", "[server_crt_path]", "string")
+		if temp_value_errors != nil {
+			return "",temp_value_errors
 		}
-
-		temp_x, temp_x_errors := x_map.GetString("value")
-		if temp_x_errors != nil {
-			return "", temp_x_errors
-		}
-		return *temp_x, nil
+		return temp_value.(string), nil
 	}
 
 	getServerKeyPath := func() (string, []error) {
-		x_map, x_map_errors := data.GetMap("[server_key_path]")
-		if x_map_errors != nil {
-			return "", x_map_errors
+		temp_value, temp_value_errors := class.GetField(struct_type, getData(), "[system_schema]", "[system_fields]", "[server_key_path]", "string")
+		if temp_value_errors != nil {
+			return "",temp_value_errors
 		}
-
-		temp_x, temp_x_errors := x_map.GetString("value")
-		if temp_x_errors != nil {
-			return "", temp_x_errors
-		}
-		return *temp_x, nil
+		return temp_value.(string), nil
 	}
+
 
 	validate := func() []error {
 		return class.ValidateData(getData(), "HolisticQueueServer")
