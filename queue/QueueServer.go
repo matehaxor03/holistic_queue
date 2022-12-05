@@ -165,14 +165,15 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			result.SetErrors("[errors]", &write_response_errors)
 		}
 
-		result_as_string, result_as_string_errors := result.ToJSONString()
+		var json_payload_builder strings.Builder
+		result_as_string_errors := result.ToJSONString(&json_payload_builder)
 		if result_as_string_errors != nil {
 			write_response_errors = append(write_response_errors, result_as_string_errors...)
 		}
 		
 		w.Header().Set("Content-Type", "application/json")
 		if result_as_string_errors == nil {
-			w.Write([]byte(*result_as_string))
+			w.Write([]byte(json_payload_builder.String()))
 		} else {
 			w.Write([]byte(fmt.Sprintf("{\"[errors]\":\"%s\", \"data\":null}", strings.ReplaceAll(fmt.Sprintf("%s", result_as_string_errors), "\"", "\\\""))))
 		}
@@ -185,7 +186,8 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		wakeup_payload.SetString("[queue]", queue_type)
 		wakeup_queue_mode := "WakeUp"
 		wakeup_payload.SetString("[queue_mode]", &wakeup_queue_mode)
-		wakeup_payload_as_string, wakeup_payload_as_string_errors := wakeup_payload.ToJSONString()
+		var json_payload_builder strings.Builder
+		wakeup_payload_as_string_errors := wakeup_payload.ToJSONString(&json_payload_builder)
 
 		if wakeup_payload_as_string_errors != nil {
 			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_payload_as_string_errors...)
@@ -195,7 +197,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return wakeup_processor_errors
 		}
 
-		wakeup_request_json_bytes := []byte(*wakeup_payload_as_string)
+		wakeup_request_json_bytes := []byte(json_payload_builder.String())
 		wakeup_request_json_reader := bytes.NewReader(wakeup_request_json_bytes)
 		wakeup_request, wakeup_request_error := http.NewRequest(http.MethodPost, processor_url, wakeup_request_json_reader)
 		if wakeup_request_error != nil {
