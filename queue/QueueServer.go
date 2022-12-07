@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	class "github.com/matehaxor03/holistic_db_client/class"
+	json "github.com/matehaxor03/holistic_json/json"
 	"io/ioutil"
 	"sync"
 	"time"
@@ -21,7 +22,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	struct_type := "*queue.QueueServer"
 	var errors []error
 	wait_groups := make(map[string]*(sync.WaitGroup))
-	result_groups := make(map[string](*class.Map))
+	result_groups := make(map[string](*json.Map))
 	//var this_holisic_queue_server *HolisticQueueServer
 
 	client_manager, client_manager_errors := class.NewClientManager()
@@ -62,22 +63,22 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	//todo: add filters to fields
-	data := class.Map{
-		"[fields]": class.Map{},
-		"[schema]": class.Map{},
-		"[system_fields]": class.Map{
+	data := json.Map{
+		"[fields]": json.Map{},
+		"[schema]": json.Map{},
+		"[system_fields]": json.Map{
 			"[port]":&port,
 			"[server_crt_path]":&server_crt_path,
 			"[server_key_path]":&server_key_path,
 		},
-		"[system_schema]":class.Map{
-			"[port]": class.Map{"type":"string","mandatory": true},
-			"[server_crt_path]": class.Map{"type":"string","mandatory": true},
-			"[server_key_path]": class.Map{"type":"string", "mandatory": true},
+		"[system_schema]":json.Map{
+			"[port]": json.Map{"type":"string"},
+			"[server_crt_path]": json.Map{"type":"string"},
+			"[server_key_path]": json.Map{"type":"string"},
 		},
 	}
 
-	getData := func() *class.Map {
+	getData := func() *json.Map {
 		return &data
 	}
 
@@ -159,7 +160,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		return strings.Join(request, "\n")
 	}*/
 
-	write_response := func(w http.ResponseWriter, result class.Map, write_response_errors []error) {
+	write_response := func(w http.ResponseWriter, result json.Map, write_response_errors []error) {
 		if len(write_response_errors) > 0 {
 			result.SetNil("data")
 			result.SetErrors("[errors]", &write_response_errors)
@@ -182,7 +183,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	wakeup_processor := func(queue_type *string) []error {
 		var wakeup_processor_errors []error
 
-		wakeup_payload := class.Map{}
+		wakeup_payload := json.Map{}
 		wakeup_payload.SetString("[queue]", queue_type)
 		wakeup_queue_mode := "WakeUp"
 		wakeup_payload.SetString("[queue_mode]", &wakeup_queue_mode)
@@ -229,7 +230,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 
 	processRequest := func(w http.ResponseWriter, req *http.Request) {
 		var process_request_errors []error
-		result := class.Map{}
+		result := json.Map{}
 
 		if !(req.Method == "POST" || req.Method == "PATCH" || req.Method == "PUT") {
 			process_request_errors = append(process_request_errors, fmt.Errorf("request method not supported: " + req.Method))
@@ -251,7 +252,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		
-		json_payload, json_payload_errors := class.ParseJSON(string(body_payload))
+		json_payload, json_payload_errors := json.ParseJSON(string(body_payload))
 		if json_payload_errors != nil {
 			process_request_errors = append(process_request_errors, json_payload_errors...)
 		}
