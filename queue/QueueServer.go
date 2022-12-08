@@ -217,7 +217,9 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_response_body_payload_error)
 		} else if wakeup_response_body_payload == nil {
 			wakeup_processor_errors = append(wakeup_processor_errors, fmt.Errorf("response to wakeup processor is nil"))
-		} 
+		} else {
+			fmt.Println(string(wakeup_response_body_payload))
+		}
 
 		if len(wakeup_processor_errors) > 0 {
 			return wakeup_processor_errors
@@ -318,6 +320,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			process_request_errors = append(process_request_errors, queue_mode_errors...)
 		} else if queue_mode == "" {
 			queue_mode = "PushBack"
+			json_pay_load_params.SetStringValue("[queue_mode]", queue_mode)
 		}
 
 		if len(process_request_errors) > 0 {
@@ -329,6 +332,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			var wg sync.WaitGroup
 			wg.Add(1)
 			wait_groups[*trace_id] = &wg
+			println(string(body_payload))
 			queue_obj.PushBack(json_payload)
 
 			wakeup_processor_errors := wakeup_processor(queue)
@@ -337,18 +341,19 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			}	
 			
 			if len(process_request_errors) > 0 {
+				fmt.Println(process_request_errors)
 				write_response(w, result, process_request_errors)
 				return
 			}
 
 			result_ptr, found := result_groups[*trace_id]
 			if !found {
-				fmt.Println("waiting")
+				fmt.Println("waiting " + *trace_id)
 				wg.Wait()
-				fmt.Println("waked_up")
+				fmt.Println("waked_up " + *trace_id)
 				result_ptr = result_groups[*trace_id]
 			} else {
-				fmt.Println("result found before waiting")
+				fmt.Println("result found before waiting " + *trace_id)
 			}
 
 			result = *result_ptr
