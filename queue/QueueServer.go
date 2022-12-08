@@ -162,9 +162,34 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}*/
 
 	write_response := func(w http.ResponseWriter, result json.Map, write_response_errors []error) {
+		keys := result.Keys()
+		
+		if len(keys) != 1 {
+			write_response_errors = append(write_response_errors, fmt.Errorf(fmt.Sprintf("number of root keys is incorrect %s",keys)))
+		}
+		
 		if len(write_response_errors) > 0 {
-			result.SetNil("data")
-			result.SetErrors("[errors]", &write_response_errors)
+			inner_map_found := false
+			if len(keys) == 1 {
+				inner_map, inner_map_errors := result.GetMap(keys[0])
+				if inner_map_errors != nil {
+					write_response_errors = append(write_response_errors, inner_map_errors...)
+				} 
+				
+				if inner_map == nil {
+					write_response_errors = append(write_response_errors, fmt.Errorf("inner map is nil"))
+					inner_map_found = false
+				} else {
+					inner_map_found = true
+				}
+			}
+
+			if inner_map_found {
+				(result[keys[0]].(json.Map))["data"] = nil
+				(result[keys[0]].(json.Map))["[errors]"] = write_response_errors
+			} else {
+				result["unknown"] = json.Map{"data":nil, "[errors]":write_response_errors}
+			}
 		}
 
 		var json_payload_builder strings.Builder
@@ -177,14 +202,14 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		if result_as_string_errors == nil {
 			w.Write([]byte(json_payload_builder.String()))
 		} else {
-			w.Write([]byte(fmt.Sprintf("{\"[errors]\":\"%s\", \"data\":null}", strings.ReplaceAll(fmt.Sprintf("%s", result_as_string_errors), "\"", "\\\""))))
+			w.Write([]byte(fmt.Sprintf("{\"unknown\":{\"[errors]\":\"%s\", \"data\":null}}", strings.ReplaceAll(fmt.Sprintf("%s", result_as_string_errors), "\"", "\\\""))))
 		}
 	}
 
-	wakeup_processor := func(queue string) []error {
+	wakeup_processor := func(queue string, trace_id string) []error {
 		var wakeup_processor_errors []error
 
-		wakeup_payload := json.Map{queue: json.Map{"[queue_mode]":"WakeUp"}}
+		wakeup_payload := json.Map{queue: json.Map{"[queue_mode]":"WakeUp", "[trace_id]":trace_id}}
 		var json_payload_builder strings.Builder
 		wakeup_payload_as_string_errors := wakeup_payload.ToJSONString(&json_payload_builder)
 
@@ -299,14 +324,10 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			process_request_errors = append(process_request_errors, fmt.Errorf("[trace_id] has nil value"))
 		}
 		
-
 		if len(process_request_errors) > 0 {
-			fmt.Println("error " + string(body_payload))
 			write_response(w, result, process_request_errors)
 			return
-		} else {
-			//fmt.Println("no error " + string(body_payload))
-		}
+		} 
 
 		queue_obj, queue_found := queues[queue]
 		if !queue_found {	
@@ -335,37 +356,30 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			println(string(body_payload))
 			queue_obj.PushBack(json_payload)
 
-			wakeup_processor_errors := wakeup_processor(queue)
+			wakeup_processor_errors := wakeup_processor(queue, *trace_id)
 			if wakeup_processor_errors != nil {
 				process_request_errors = append(process_request_errors, wakeup_processor_errors...)
 			}	
 			
 			if len(process_request_errors) > 0 {
-				fmt.Println(process_request_errors)
 				write_response(w, result, process_request_errors)
 				return
 			}
 
 			result_ptr, found := result_groups[*trace_id]
 			if !found {
-				fmt.Println("waiting " + *trace_id)
 				wg.Wait()
-				fmt.Println("waked_up " + *trace_id)
 				result_ptr = result_groups[*trace_id]
-			} else {
-				fmt.Println("result found before waiting " + *trace_id)
 			}
-
 			result = *result_ptr
-
-			//wg.Wait()
-			//result = *(result_groups[*trace_id])
 			delete(result_groups, *trace_id)
 		} else if queue_mode == "GetAndRemoveFront" {
 			front := queue_obj.GetAndRemoveFront()
 			if front != nil {
 				result = *front
-			} 
+			} else {
+				result = json.Map{"empty": json.Map{"[trace_id]":*trace_id, "[queue_mode]":queue_mode}}
+			}
 		} else if queue_mode == "complete" {
 			json_pay_load_params.RemoveKey("[queue_mode]")
 			json_pay_load_params.RemoveKey("[queue]")
