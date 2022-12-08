@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	class "github.com/matehaxor03/holistic_db_client/class"
+	common "github.com/matehaxor03/holistic_common/common"
 	json "github.com/matehaxor03/holistic_json/json"
 	"io/ioutil"
 	"sync"
@@ -180,13 +181,10 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 	}
 
-	wakeup_processor := func(queue_type *string) []error {
+	wakeup_processor := func(queue string) []error {
 		var wakeup_processor_errors []error
 
-		wakeup_payload := json.Map{}
-		wakeup_payload.SetString("[queue]", queue_type)
-		wakeup_queue_mode := "WakeUp"
-		wakeup_payload.SetString("[queue_mode]", &wakeup_queue_mode)
+		wakeup_payload := json.Map{queue: json.Map{"[queue_mode]":"WakeUp"}}
 		var json_payload_builder strings.Builder
 		wakeup_payload_as_string_errors := wakeup_payload.ToJSONString(&json_payload_builder)
 
@@ -266,15 +264,29 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return
 		}
 
-		queue_type, queue_type_errors := json_payload.GetString("[queue]")
-		trace_id, trace_id_errors := json_payload.GetString("[trace_id]")
-
-		if queue_type_errors != nil {
-			process_request_errors = append(process_request_errors, queue_type_errors...)
+		keys := json_payload.Keys()
+		if len(keys) != 1 {
+			process_request_errors = append(process_request_errors, fmt.Errorf("root level keys is more than 1"))
+			write_response(w, result, process_request_errors)
+			return
 		}
 
-		if queue_type == nil {
-			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] has nil value"))
+		queue := keys[0]
+		json_pay_load_params, json_pay_load_params_errors := json_payload.GetMap(queue)
+		if json_pay_load_params_errors != nil {
+			process_request_errors = append(process_request_errors, fmt.Errorf("did not find map for queue type %s", queue))
+			write_response(w, result, process_request_errors)
+			return
+		} else if common.IsNil(json_pay_load_params) {
+			process_request_errors = append(process_request_errors, fmt.Errorf("json payload is nill for queue type %s", queue))
+			write_response(w, result, process_request_errors)
+			return
+		}
+
+		trace_id, trace_id_errors := json_pay_load_params.GetString("[trace_id]")
+
+		if queue == "" {
+			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] has empty value"))
 		}
 
 		if trace_id_errors != nil {
@@ -294,16 +306,14 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			//fmt.Println("no error " + string(body_payload))
 		}
 
-		queue, queue_found := queues[*queue_type]
+		queue_obj, queue_found := queues[queue]
 		if !queue_found {	
-			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s not found", *queue_type))
+			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s not found", queue))
+		} else if queue_obj == nil {
+			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s is nil", queue))
 		}
 
-		if queue == nil {
-			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s is nil", *queue_type))
-		}
-
-		queue_mode, queue_mode_errors := json_payload.GetStringValue("[queue_mode]")
+		queue_mode, queue_mode_errors := json_pay_load_params.GetStringValue("[queue_mode]")
 		if queue_mode_errors != nil {
 			process_request_errors = append(process_request_errors, queue_mode_errors...)
 		} else if queue_mode == "" {
@@ -319,9 +329,9 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			var wg sync.WaitGroup
 			wg.Add(1)
 			wait_groups[*trace_id] = &wg
-			queue.PushBack(json_payload)
+			queue_obj.PushBack(json_payload)
 
-			wakeup_processor_errors := wakeup_processor(queue_type)
+			wakeup_processor_errors := wakeup_processor(queue)
 			if wakeup_processor_errors != nil {
 				process_request_errors = append(process_request_errors, wakeup_processor_errors...)
 			}	
@@ -347,13 +357,13 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			//result = *(result_groups[*trace_id])
 			delete(result_groups, *trace_id)
 		} else if queue_mode == "GetAndRemoveFront" {
-			front := queue.GetAndRemoveFront()
+			front := queue_obj.GetAndRemoveFront()
 			if front != nil {
 				result = *front
 			} 
 		} else if queue_mode == "complete" {
-			json_payload.RemoveKey("[queue_mode]")
-			json_payload.RemoveKey("[queue]")
+			json_pay_load_params.RemoveKey("[queue_mode]")
+			json_pay_load_params.RemoveKey("[queue]")
 			result_groups[*trace_id] = json_payload
 			(wait_groups[*trace_id]).Done()
 			delete(wait_groups, *trace_id)
