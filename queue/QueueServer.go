@@ -303,17 +303,19 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s is nil", *queue_type))
 		}
 
-		queue_mode, queue_mode_errors := json_payload.GetString("[queue_mode]")
+		queue_mode, queue_mode_errors := json_payload.GetStringValue("[queue_mode]")
 		if queue_mode_errors != nil {
 			process_request_errors = append(process_request_errors, queue_mode_errors...)
-		} 
+		} else if queue_mode == "" {
+			queue_mode = "PushBack"
+		}
 
 		if len(process_request_errors) > 0 {
 			write_response(w, result, process_request_errors)
 			return
 		}
 
-		if *queue_mode == "PushBack" {
+		if queue_mode == "PushBack" {
 			var wg sync.WaitGroup
 			wg.Add(1)
 			wait_groups[*trace_id] = &wg
@@ -344,19 +346,19 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			//wg.Wait()
 			//result = *(result_groups[*trace_id])
 			delete(result_groups, *trace_id)
-		} else if *queue_mode == "GetAndRemoveFront" {
+		} else if queue_mode == "GetAndRemoveFront" {
 			front := queue.GetAndRemoveFront()
 			if front != nil {
 				result = *front
 			} 
-		} else if *queue_mode == "complete" {
+		} else if queue_mode == "complete" {
 			json_payload.RemoveKey("[queue_mode]")
 			json_payload.RemoveKey("[queue]")
 			result_groups[*trace_id] = json_payload
 			(wait_groups[*trace_id]).Done()
 			delete(wait_groups, *trace_id)
 		} else {
-			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", *queue_mode))
+			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", queue_mode))
 		}
 	
 		write_response(w, result, process_request_errors)
