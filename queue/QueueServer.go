@@ -10,6 +10,8 @@ import (
 	class "github.com/matehaxor03/holistic_db_client/class"
 	common "github.com/matehaxor03/holistic_common/common"
 	json "github.com/matehaxor03/holistic_json/json"
+	thread_safe "github.com/matehaxor03/holistic_thread_safe/thread_safe"
+
 	"io/ioutil"
 	"sync"
 	"time"
@@ -41,21 +43,21 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		return nil, test_read_database_errors
 	}
 
-	queues := make(map[string](*Queue))
+	queues := make(map[string](*thread_safe.Queue))
 	table_names, table_names_errors := test_read_database.GetTableNames()
 	if table_names_errors != nil {
 		return nil, table_names_errors
 	}
 
 	for _, table_name := range *table_names {
-		queues["Create_"+table_name] = NewQueue()
-		queues["Read_"+table_name] = NewQueue()
-		queues["Update_"+table_name] = NewQueue()
-		queues["Delete_"+table_name] = NewQueue()
-		queues["GetSchema_"+table_name] = NewQueue()
+		queues["Create_"+table_name] = thread_safe.NewQueue()
+		queues["Read_"+table_name] = thread_safe.NewQueue()
+		queues["Update_"+table_name] = thread_safe.NewQueue()
+		queues["Delete_"+table_name] = thread_safe.NewQueue()
+		queues["GetSchema_"+table_name] = thread_safe.NewQueue()
 	}
 
-	queues["GetTableNames"] = NewQueue()
+	queues["GetTableNames"] = thread_safe.NewQueue()
 	
 
 	domain_name, domain_name_errors := class.NewDomainName(processor_domain_name)
@@ -249,6 +251,9 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		if len(wakeup_processor_errors) > 0 {
 			return wakeup_processor_errors
 		}
+
+
+		// check body payload
 
 		return nil
 	}

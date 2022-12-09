@@ -4,3 +4,5 @@ github.com/matehaxor03/holistic_db_client v0.0.378 h1:FxZQpOA6jsmOObtU5/PXEjMc4a
 github.com/matehaxor03/holistic_db_client v0.0.378/go.mod h1:QqExHQHyEoAGjtKAIFMqV9vHN1MD7yepEmtAyZxBLzo=
 github.com/matehaxor03/holistic_json v0.0.6 h1:xJ5coTfeo26pXf9tj+Cf2Spm6/pXtmShUe3t+lSkCBA=
 github.com/matehaxor03/holistic_json v0.0.6/go.mod h1:n09z/TZo9gosn0avn6AC6S+Ih8RpRG/mC+VJbjAvhtE=
+github.com/matehaxor03/holistic_thread_safe v0.0.1 h1:OdmyUHTaMuucdkTfnGLiKUGpa/rH3xuRhdD+wXQrtI4=
+github.com/matehaxor03/holistic_thread_safe v0.0.1/go.mod h1:KqLl68oFJVeyycjI6LRDPJltEZ4ViqjLEnLglt1RBLs=
