@@ -11,6 +11,7 @@ import (
 	common "github.com/matehaxor03/holistic_common/common"
 	json "github.com/matehaxor03/holistic_json/json"
 	thread_safe "github.com/matehaxor03/holistic_thread_safe/thread_safe"
+	http_extension "github.com/matehaxor03/holistic_http/http_extension"
 
 	"io/ioutil"
 	"sync"
@@ -140,74 +141,6 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return this_holisic_queue_server
 		}*/
 
-		/*
-	formatRequest := func(r *http.Request) string {
-		var request []string
-
-		url := fmt.Sprintf("%v %v %v", r.Method, r.URL, r.Proto)
-		request = append(request, url)
-		request = append(request, fmt.Sprintf("Host: %v", r.Host))
-		for name, headers := range r.Header {
-			name = strings.ToLower(name)
-			for _, h := range headers {
-				request = append(request, fmt.Sprintf("%v: %v", name, h))
-			}
-		}
-
-		if r.Method == "POST" {
-			r.ParseForm()
-			request = append(request, "\n")
-			request = append(request, r.Form.Encode())
-		}
-
-		return strings.Join(request, "\n")
-	}*/
-
-	write_response := func(w http.ResponseWriter, result json.Map, write_response_errors []error) {
-		keys := result.Keys()
-		
-		if len(keys) != 1 {
-			write_response_errors = append(write_response_errors, fmt.Errorf(fmt.Sprintf("number of root keys is incorrect %s",keys)))
-		}
-		
-		if len(write_response_errors) > 0 {
-			inner_map_found := false
-			if len(keys) == 1 {
-				inner_map, inner_map_errors := result.GetMap(keys[0])
-				if inner_map_errors != nil {
-					write_response_errors = append(write_response_errors, inner_map_errors...)
-				} 
-				
-				if inner_map == nil {
-					write_response_errors = append(write_response_errors, fmt.Errorf("inner map is nil"))
-					inner_map_found = false
-				} else {
-					inner_map_found = true
-				}
-			}
-
-			if inner_map_found {
-				(result[keys[0]].(json.Map))["data"] = nil
-				(result[keys[0]].(json.Map))["[errors]"] = write_response_errors
-			} else {
-				result["unknown"] = json.Map{"data":nil, "[errors]":write_response_errors}
-			}
-		}
-
-		var json_payload_builder strings.Builder
-		result_as_string_errors := result.ToJSONString(&json_payload_builder)
-		if result_as_string_errors != nil {
-			write_response_errors = append(write_response_errors, result_as_string_errors...)
-		}
-		
-		w.Header().Set("Content-Type", "application/json")
-		if result_as_string_errors == nil {
-			w.Write([]byte(json_payload_builder.String()))
-		} else {
-			w.Write([]byte(fmt.Sprintf("{\"unknown\":{\"[errors]\":\"%s\", \"data\":null}}", strings.ReplaceAll(fmt.Sprintf("%s", result_as_string_errors), "\"", "\\\""))))
-		}
-	}
-
 	wakeup_processor := func(queue string, trace_id string) []error {
 		var wakeup_processor_errors []error
 
@@ -267,7 +200,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(process_request_errors) > 0 {
-			write_response(w, result, process_request_errors)
+			http_extension.WriteResponse(w, result, process_request_errors)
 			return
 		}
 
@@ -277,7 +210,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(process_request_errors) > 0 {
-			write_response(w, result, process_request_errors)
+			http_extension.WriteResponse(w, result, process_request_errors)
 			return
 		}
 
@@ -292,14 +225,14 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(process_request_errors) > 0 {
-			write_response(w, result, process_request_errors)
+			http_extension.WriteResponse(w, result, process_request_errors)
 			return
 		}
 
 		keys := json_payload.Keys()
 		if len(keys) != 1 {
 			process_request_errors = append(process_request_errors, fmt.Errorf("root level keys is more than 1"))
-			write_response(w, result, process_request_errors)
+			http_extension.WriteResponse(w, result, process_request_errors)
 			return
 		}
 
@@ -307,11 +240,11 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		json_pay_load_params, json_pay_load_params_errors := json_payload.GetMap(queue)
 		if json_pay_load_params_errors != nil {
 			process_request_errors = append(process_request_errors, fmt.Errorf("did not find map for queue type %s", queue))
-			write_response(w, result, process_request_errors)
+			http_extension.WriteResponse(w, result, process_request_errors)
 			return
 		} else if common.IsNil(json_pay_load_params) {
 			process_request_errors = append(process_request_errors, fmt.Errorf("json payload is nill for queue type %s", queue))
-			write_response(w, result, process_request_errors)
+			http_extension.WriteResponse(w, result, process_request_errors)
 			return
 		}
 
@@ -330,7 +263,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 		
 		if len(process_request_errors) > 0 {
-			write_response(w, result, process_request_errors)
+			http_extension.WriteResponse(w, result, process_request_errors)
 			return
 		} 
 
@@ -350,7 +283,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(process_request_errors) > 0 {
-			write_response(w, result, process_request_errors)
+			http_extension.WriteResponse(w, result, process_request_errors)
 			return
 		}
 
@@ -367,7 +300,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			}	
 			
 			if len(process_request_errors) > 0 {
-				write_response(w, result, process_request_errors)
+				http_extension.WriteResponse(w, result, process_request_errors)
 				return
 			}
 
@@ -395,7 +328,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", queue_mode))
 		}
 	
-		write_response(w, result, process_request_errors)
+		http_extension.WriteResponse(w, result, process_request_errors)
 	}
 
 	x := QueueServer{
