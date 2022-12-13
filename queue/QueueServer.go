@@ -51,10 +51,10 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	for _, table_name := range *table_names {
-		queues["Create_"+table_name] = thread_safe.NewQueue()
-		queues["Read_"+table_name] = thread_safe.NewQueue()
-		queues["Update_"+table_name] = thread_safe.NewQueue()
-		queues["Delete_"+table_name] = thread_safe.NewQueue()
+		queues["CreateRecords_"+table_name] = thread_safe.NewQueue()
+		queues["ReadRecords_"+table_name] = thread_safe.NewQueue()
+		queues["UpdateRecords_"+table_name] = thread_safe.NewQueue()
+		queues["DeleteRecords_"+table_name] = thread_safe.NewQueue()
 		queues["GetSchema_"+table_name] = thread_safe.NewQueue()
 	}
 
