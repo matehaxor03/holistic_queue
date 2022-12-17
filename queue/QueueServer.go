@@ -52,10 +52,14 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 
 	for _, table_name := range *table_names {
 		queues["CreateRecords_"+table_name] = thread_safe.NewQueue()
+		queues["CreateRecord_"+table_name] = thread_safe.NewQueue()
 		queues["ReadRecords_"+table_name] = thread_safe.NewQueue()
 		queues["UpdateRecords_"+table_name] = thread_safe.NewQueue()
+		queues["UpdateRecord_"+table_name] = thread_safe.NewQueue()
+		queues["CreateRecords_"+table_name] = thread_safe.NewQueue()
 		queues["DeleteRecords_"+table_name] = thread_safe.NewQueue()
 		queues["GetSchema_"+table_name] = thread_safe.NewQueue()
+		queues["Run_BuildBranchInstance"] = thread_safe.NewQueue()
 	}
 
 	queues["GetTableNames"] = thread_safe.NewQueue()
@@ -213,7 +217,6 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			http_extension.WriteResponse(w, result, process_request_errors)
 			return
 		}
-
 		
 		json_payload, json_payload_errors := json.ParseJSON(string(body_payload))
 		if json_payload_errors != nil {
@@ -282,16 +285,31 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			json_pay_load_params.SetStringValue("[queue_mode]", queue_mode)
 		}
 
+		async, async_errors := json_pay_load_params.GetBool("[async]")
+		if async_errors != nil {
+			process_request_errors = append(process_request_errors, async_errors...)
+		} else if common.IsNil(async) {
+			async_false := false
+			async = &async_false
+			json_pay_load_params.SetBool("[async]", &async_false)
+		}
+
 		if len(process_request_errors) > 0 {
 			http_extension.WriteResponse(w, result, process_request_errors)
 			return
 		}
 
+		result_inner := json.Map{"[trace_id]":*trace_id, "[queue_mode]":queue_mode, "[async]":*async}
+		result = json.Map{queue: result_inner}
+		
 		if queue_mode == "PushBack" {
 			var wg sync.WaitGroup
-			wg.Add(1)
-			wait_groups[*trace_id] = &wg
+			if !json_pay_load_params.IsBoolTrue("[async]") {
+				wg.Add(1)
+				wait_groups[*trace_id] = &wg
+			}
 			println(string(body_payload))
+			
 			queue_obj.PushBack(json_payload)
 
 			wakeup_processor_errors := wakeup_processor(queue, *trace_id)
@@ -304,30 +322,40 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 				return
 			}
 
-			result_ptr, found := result_groups[*trace_id]
-			if !found {
-				wg.Wait()
-				result_ptr = result_groups[*trace_id]
+			if !json_pay_load_params.IsBoolTrue("[async]") {
+				result_ptr, found := result_groups[*trace_id]
+				if !found {
+					wg.Wait()
+					result_ptr = result_groups[*trace_id]
+				}
+				result = *result_ptr
+				delete(result_groups, *trace_id)
 			}
-			result = *result_ptr
-			delete(result_groups, *trace_id)
 		} else if queue_mode == "GetAndRemoveFront" {
 			front := queue_obj.GetAndRemoveFront()
 			if front != nil {
 				result = *front
 			} else {
-				result = json.Map{"empty": json.Map{"[trace_id]":*trace_id, "[queue_mode]":queue_mode}}
+				empty_map := json.Map{}
+				empty_map.SetMap("empty", &result_inner)
+				result = empty_map
 			}
 		} else if queue_mode == "complete" {
-			json_pay_load_params.RemoveKey("[queue_mode]")
-			json_pay_load_params.RemoveKey("[queue]")
-			result_groups[*trace_id] = json_payload
-			(wait_groups[*trace_id]).Done()
-			delete(wait_groups, *trace_id)
+			if !json_pay_load_params.IsBoolTrue("[async]") {
+				json_pay_load_params.RemoveKey("[queue_mode]")
+				json_pay_load_params.RemoveKey("[queue]")
+				fmt.Println(string(body_payload))
+				result_groups[*trace_id] = json_payload
+				wait_group, wait_group_found := wait_groups[*trace_id]
+				if wait_group_found {
+					wait_group.Done()
+					delete(wait_groups, *trace_id)
+				}
+			}
 		} else {
 			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", queue_mode))
 		}
-	
+
 		http_extension.WriteResponse(w, result, process_request_errors)
 	}
 
