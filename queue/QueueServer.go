@@ -351,6 +351,8 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 					wait_group.Done()
 					delete(wait_groups, *trace_id)
 				}
+				//result = *json_payload
+				//todo set errors from payload
 			}
 		} else {
 			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", queue_mode))
