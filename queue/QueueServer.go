@@ -263,6 +263,8 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 
 		if trace_id == nil {
 			process_request_errors = append(process_request_errors, fmt.Errorf("[trace_id] has nil value"))
+			trace_id_unknown := "unknown"
+			trace_id = &trace_id_unknown
 		}
 		
 		if len(process_request_errors) > 0 {
@@ -294,13 +296,13 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			json_pay_load_params.SetBool("[async]", &async_false)
 		}
 
+		result_inner := json.Map{"[trace_id]":*trace_id, "[queue_mode]":queue_mode, "[async]":*async}
+		result = json.Map{queue: result_inner}
+
 		if len(process_request_errors) > 0 {
 			http_extension.WriteResponse(w, result, process_request_errors)
 			return
 		}
-
-		result_inner := json.Map{"[trace_id]":*trace_id, "[queue_mode]":queue_mode, "[async]":*async}
-		result = json.Map{queue: result_inner}
 		
 		if queue_mode == "PushBack" {
 			var wg sync.WaitGroup
