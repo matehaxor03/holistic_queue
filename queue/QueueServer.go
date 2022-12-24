@@ -77,7 +77,20 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	queues["Run_PullLatestBranchOrTagFolder"] = thread_safe.NewQueue()
 	queues["Run_CreateInstanceFolder"] = thread_safe.NewQueue()
 	queues["Run_CopyToInstanceFolder"] = thread_safe.NewQueue()
-
+	queues["Run_CreateGroup"] = thread_safe.NewQueue()
+	queues["Run_CreateUser"] = thread_safe.NewQueue()
+	queues["Run_AssignGroupToUser"] = thread_safe.NewQueue()
+	queues["Run_AssignGroupToInstanceFolder"] = thread_safe.NewQueue()
+	queues["Run_Clean"] = thread_safe.NewQueue()
+	queues["Run_Lint"] = thread_safe.NewQueue()
+	queues["Run_Build"] = thread_safe.NewQueue()
+	queues["Run_UnitTests"] = thread_safe.NewQueue()
+	queues["Run_RemoveGroupFromInstanceFolder"] = thread_safe.NewQueue()
+	queues["Run_RemoveGroupFromUser"] = thread_safe.NewQueue()
+	queues["Run_DeleteGroup"] = thread_safe.NewQueue()
+	queues["Run_DeleteUser"] = thread_safe.NewQueue()
+	queues["Run_DeleteInstanceFolder"] = thread_safe.NewQueue()
+	queues["Run_End"] = thread_safe.NewQueue()
 
 	queues["GetTableNames"] = thread_safe.NewQueue()
 	
