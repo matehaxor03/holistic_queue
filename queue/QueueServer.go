@@ -70,6 +70,8 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	queues["Run_CreateRepositoryFolder"] = thread_safe.NewQueue()
 	queues["Run_CreateBranchesFolder"] = thread_safe.NewQueue()
 	queues["Run_CreateTagsFolder"] = thread_safe.NewQueue()
+	queues["Run_CreateBranchInstancesFolder"] = thread_safe.NewQueue()
+	queues["Run_CreateTagInstancesFolder"] = thread_safe.NewQueue()
 	queues["Run_CreateBranchOrTagFolder"] = thread_safe.NewQueue()
 	queues["Run_CloneBranchOrTagFolder"] = thread_safe.NewQueue()
 	queues["Run_PullLatestBranchOrTagFolder"] = thread_safe.NewQueue()
