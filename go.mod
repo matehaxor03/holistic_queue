@@ -9,6 +9,6 @@ require (
 )
 
 require (
-	github.com/matehaxor03/holistic_common v0.0.12
+	github.com/matehaxor03/holistic_common v0.0.13
 	github.com/matehaxor03/holistic_http v0.0.6
 )
