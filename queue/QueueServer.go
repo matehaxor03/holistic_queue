@@ -227,14 +227,13 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 
 	processRequest := func(w http.ResponseWriter, req *http.Request) {
 		var process_request_errors []error
-		result := json.Map{}
-
+		
 		if !(req.Method == "POST" || req.Method == "PATCH" || req.Method == "PUT") {
 			process_request_errors = append(process_request_errors, fmt.Errorf("request method not supported: " + req.Method))
 		}
 
 		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, result, process_request_errors)
+			http_extension.WriteResponse(w, json.Map{}, process_request_errors)
 			return
 		}
 
@@ -244,25 +243,25 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, result, process_request_errors)
+			http_extension.WriteResponse(w, json.Map{}, process_request_errors)
 			return
 		}
 		
-		json_payload, json_payload_errors := json.ParseJSON(string(body_payload))
-		if json_payload_errors != nil {
-			process_request_errors = append(process_request_errors, json_payload_errors...)
+		request, request_errors := json.ParseJSON(string(body_payload))
+		if request_errors != nil {
+			process_request_errors = append(process_request_errors, request_errors...)
 		}
 
-		if json_payload == nil {
-			process_request_errors = append(process_request_errors, fmt.Errorf("json_payload is nil"))
+		if request == nil {
+			process_request_errors = append(process_request_errors, fmt.Errorf("request is nil"))
 		}
 
 		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, result, process_request_errors)
+			http_extension.WriteResponse(w, json.Map{}, process_request_errors)
 			return
 		}
 
-		queue, queue_errors := json_payload.GetString("[queue]")
+		queue, queue_errors := request.GetString("[queue]")
 		if queue_errors != nil {
 			process_request_errors = append(process_request_errors, queue_errors...)
 		} else if common.IsNil(queue) {
@@ -270,11 +269,11 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, result, process_request_errors)
+			http_extension.WriteResponse(w, json.Map{}, process_request_errors)
 			return
 		}
 
-		trace_id, trace_id_errors := json_payload.GetString("[trace_id]")
+		trace_id, trace_id_errors := request.GetString("[trace_id]")
 
 		if *queue == "" {
 			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] has empty value"))
@@ -282,16 +281,12 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 
 		if trace_id_errors != nil {
 			process_request_errors = append(process_request_errors, trace_id_errors...)
+		} else if common.IsNil(trace_id) {
+			process_request_errors = append(process_request_errors, fmt.Errorf("[trace_id] is nil"))
 		}
 
-		if trace_id == nil {
-			process_request_errors = append(process_request_errors, fmt.Errorf("[trace_id] has nil value"))
-			trace_id_unknown := "unknown"
-			trace_id = &trace_id_unknown
-		}
-		
 		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, result, process_request_errors)
+			http_extension.WriteResponse(w, json.Map{}, process_request_errors)
 			return
 		} 
 
@@ -302,39 +297,35 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s is nil", queue))
 		}
 
-		queue_mode, queue_mode_errors := json_payload.GetStringValue("[queue_mode]")
+		queue_mode, queue_mode_errors := request.GetStringValue("[queue_mode]")
 		if queue_mode_errors != nil {
 			process_request_errors = append(process_request_errors, queue_mode_errors...)
 		} else if queue_mode == "" {
 			queue_mode = "PushBack"
-			json_payload.SetStringValue("[queue_mode]", queue_mode)
+			request.SetStringValue("[queue_mode]", queue_mode)
 		}
 
-		async, async_errors := json_payload.GetBool("[async]")
+		async, async_errors := request.GetBool("[async]")
 		if async_errors != nil {
 			process_request_errors = append(process_request_errors, async_errors...)
 		} else if common.IsNil(async) {
 			async_false := false
 			async = &async_false
-			json_payload.SetBool("[async]", &async_false)
+			request.SetBool("[async]", &async_false)
 		}
 
-		request := json.Map{"[queue]":*queue, "[trace_id]":*trace_id, "[queue_mode]":queue_mode, "[async]":*async}
-
 		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, request, process_request_errors)
+			http_extension.WriteResponse(w, *request, process_request_errors)
 			return
 		}
 		
 		if queue_mode == "PushBack" {
 			var wg sync.WaitGroup
-			if !json_payload.IsBoolTrue("[async]") {
+			if !request.IsBoolTrue("[async]") {
 				wg.Add(1)
 				wait_groups[*trace_id] = &wg
-			}
-			println(string(body_payload))
-			
-			queue_obj.PushBack(json_payload)
+			}			
+			queue_obj.PushBack(request)
 
 			wakeup_processor_errors := wakeup_processor(*queue, *trace_id)
 			if wakeup_processor_errors != nil {
@@ -342,7 +333,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			}	
 			
 			if len(process_request_errors) > 0 {
-				http_extension.WriteResponse(w, request, process_request_errors)
+				http_extension.WriteResponse(w, *request, process_request_errors)
 				return
 			}
 
@@ -352,23 +343,21 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 					wg.Wait()
 					result_ptr = result_groups[*trace_id]
 				}
-				result = *result_ptr
+				request = result_ptr
 				delete(result_groups, *trace_id)
 			}
 		} else if queue_mode == "GetAndRemoveFront" {
 			front := queue_obj.GetAndRemoveFront()
 			if front != nil {
-				result = *front
+				request = front
 			} else {
 				empty_map := json.Map{"[queue]":"empty", "[trace_id]":*trace_id, "[queue_mode]":queue_mode, "[async]":*async}
-				request = empty_map
+				request = &empty_map
 			}
 		} else if queue_mode == "complete" {
 			if !request.IsBoolTrue("[async]") {
-				request.RemoveKey("[queue_mode]")
-				request.RemoveKey("[queue]")
 				fmt.Println(string(body_payload))
-				result_groups[*trace_id] = json_payload
+				result_groups[*trace_id] = request
 				wait_group, wait_group_found := wait_groups[*trace_id]
 				if wait_group_found {
 					wait_group.Done()
@@ -381,7 +370,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", queue_mode))
 		}
 
-		http_extension.WriteResponse(w, request, process_request_errors)
+		http_extension.WriteResponse(w, *request, process_request_errors)
 	}
 
 	x := QueueServer{
