@@ -87,6 +87,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	queues["Run_Build"] = thread_safe.NewQueue()
 	queues["Run_UnitTests"] = thread_safe.NewQueue()
 	queues["Run_IntegrationTests"] = thread_safe.NewQueue()
+	queues["Run_IntegrationTestSuite"] = thread_safe.NewQueue()
 	queues["Run_RemoveGroupFromInstanceFolder"] = thread_safe.NewQueue()
 	queues["Run_RemoveGroupFromUser"] = thread_safe.NewQueue()
 	queues["Run_DeleteGroup"] = thread_safe.NewQueue()
