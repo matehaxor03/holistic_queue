@@ -25,7 +25,9 @@ type QueueServer struct {
 func NewQueueServer(port string, server_crt_path string, server_key_path string, processor_domain_name string, processor_port string) (*QueueServer, []error) {
 	struct_type := "*queue.QueueServer"
 	var errors []error
+	lock_wait_group := &sync.Mutex{}
 	wait_groups := make(map[string]*(sync.WaitGroup))
+	lock_result_group := &sync.Mutex{}
 	result_groups := make(map[string](*json.Map))
 
 	client_manager, client_manager_errors := class.NewClientManager()
@@ -163,6 +165,83 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	http_client := http.Client{
 		Timeout:   120 * time.Second,
 		Transport: transport_config,
+	}
+
+	crud_wait_group := func(trace_id string, wait_group *(sync.WaitGroup), mode string)  (*(sync.WaitGroup), []error) {
+		lock_wait_group.Lock()
+		defer lock_wait_group.Unlock()
+		var errors []error
+		if mode == "create" {
+			if common.IsNil(wait_group) {
+				errors = append(errors, fmt.Errorf("cannot add nil wait_group"))
+				return nil, errors
+			}
+
+			_, get_wait_group_found := wait_groups[trace_id]
+			if get_wait_group_found {
+				errors = append(errors, fmt.Errorf("trace_id already exists"))
+				return nil, errors
+			}
+			wait_groups[trace_id] = wait_group
+			return nil, nil
+		} else if mode == "read" {
+			get_wait_group, get_wait_group_found := wait_groups[trace_id]
+			if get_wait_group_found {
+				return get_wait_group, nil
+			}
+			return nil, nil
+		} else if mode == "delete" {
+			_, get_wait_group_found := wait_groups[trace_id]
+			if get_wait_group_found {
+				delete(wait_groups, trace_id)
+			}
+			return nil, nil
+		} else if mode == "done" {
+			get_wait_group, wait_group_found := wait_groups[trace_id]
+			if wait_group_found {
+				get_wait_group.Done()
+			}
+			return nil, nil
+		} else {
+			errors = append(errors, fmt.Errorf("mode %s is not supported", mode))
+			return nil, errors
+		}
+	}
+
+	crud_result_group := func(trace_id string, result_group *json.Map, mode string)  (*json.Map, []error) {
+		lock_result_group.Lock()
+		defer lock_result_group.Unlock()
+		var errors []error
+		if mode == "create" {
+			if common.IsNil(result_group) {
+				errors = append(errors, fmt.Errorf("cannot add nil result group"))
+				return nil, errors
+			}
+
+			_, get_result_group_found := result_groups[trace_id]
+			if get_result_group_found {
+				errors = append(errors, fmt.Errorf("trace_id already exists"))
+				return nil, errors
+			}
+
+			result_groups[trace_id] = result_group
+			return nil, nil
+		} else if mode == "read" {
+			get_result_group, get_result_group_found := result_groups[trace_id]
+			if get_result_group_found {
+				return get_result_group, nil
+			}
+			return nil, nil
+		} else if mode == "delete" {
+			_, get_result_group_found := result_groups[trace_id]
+			if get_result_group_found {
+				delete(result_groups, trace_id)
+			}
+			return nil, nil
+		} else {
+			errors = append(errors, fmt.Errorf("mode %s is not supported", mode))
+			return nil, errors
+		}
 	}
 
 	/*
@@ -323,7 +402,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			var wg sync.WaitGroup
 			if !request.IsBoolTrue("[async]") {
 				wg.Add(1)
-				wait_groups[*trace_id] = &wg
+				crud_wait_group(*trace_id, &wg, "create")
 			}			
 			
 			queue_obj.PushBack(request)
@@ -339,13 +418,37 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			}
 
 			if !request.IsBoolTrue("[async]") {
-				result_ptr, found := result_groups[*trace_id]
-				if !found {
-					wg.Wait()
-					result_ptr = result_groups[*trace_id]
+				//result_ptr, found := result_groups[*trace_id]
+				get_wait_group, get_wait_group_errors := crud_wait_group(*trace_id, nil, "read")
+				if get_wait_group_errors != nil {
+					process_request_errors = append(process_request_errors, get_wait_group_errors...)
 				}
-				request = result_ptr
-				delete(result_groups, *trace_id)
+
+				if len(process_request_errors) > 0 {
+					http_extension.WriteResponse(w, *request, process_request_errors)
+					return
+				}
+
+				if !common.IsNil(get_wait_group) {
+					get_wait_group.Wait()
+				}
+
+
+				result_group, result_group_errors := crud_result_group(*trace_id, nil, "read")
+				if result_group_errors != nil {
+					process_request_errors = append(process_request_errors, result_group_errors...)
+				} else if common.IsNil(result_group) {
+					process_request_errors = append(process_request_errors, fmt.Errorf("result group is nil"))
+				}
+
+				if len(process_request_errors) > 0 {
+					crud_result_group(*trace_id, nil, "delete")
+					http_extension.WriteResponse(w, *request, process_request_errors)
+					return
+				}
+				
+				request = result_group
+				crud_result_group(*trace_id, nil, "delete")
 			}
 		} else if queue_mode == "GetAndRemoveFront" {
 			front := queue_obj.GetAndRemoveFront()
@@ -357,13 +460,15 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			}
 		} else if queue_mode == "complete" {
 			if !request.IsBoolTrue("[async]") {
-				fmt.Println(string(body_payload))
-				result_groups[*trace_id] = request
-				wait_group, wait_group_found := wait_groups[*trace_id]
+				crud_result_group(*trace_id, request, "create")
+				crud_wait_group(*trace_id, nil, "done")
+				crud_wait_group(*trace_id, nil, "delete")
+				
+				/*wait_group, wait_group_found := wait_groups[*trace_id]
 				if wait_group_found {
 					wait_group.Done()
 					delete(wait_groups, *trace_id)
-				}
+				}*/
 				//todo set errors from payload
 			}
 		} else {
