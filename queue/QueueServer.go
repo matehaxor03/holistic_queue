@@ -190,16 +190,17 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 				return get_wait_group, nil
 			}
 			return nil, nil
+		} else if mode == "done-delete" {
+			get_wait_group, get_wait_group_found := wait_groups[trace_id]
+			if get_wait_group_found {
+				get_wait_group.Done()
+				delete(wait_groups, trace_id)
+			}
+			return nil, nil
 		} else if mode == "delete" {
 			_, get_wait_group_found := wait_groups[trace_id]
 			if get_wait_group_found {
 				delete(wait_groups, trace_id)
-			}
-			return nil, nil
-		} else if mode == "done" {
-			get_wait_group, wait_group_found := wait_groups[trace_id]
-			if wait_group_found {
-				get_wait_group.Done()
 			}
 			return nil, nil
 		} else {
@@ -266,6 +267,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(wakeup_processor_errors) > 0 {
+			fmt.Println(wakeup_processor_errors)
 			return wakeup_processor_errors
 		}
 
@@ -282,6 +284,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(wakeup_processor_errors) > 0 {
+			fmt.Println(wakeup_processor_errors)
 			return wakeup_processor_errors
 		}
 
@@ -295,6 +298,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(wakeup_processor_errors) > 0 {
+			fmt.Println(wakeup_processor_errors)
 			return wakeup_processor_errors
 		}
 
@@ -399,23 +403,16 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 		
 		if queue_mode == "PushBack" {
-			var wg sync.WaitGroup
+			
 			if !request.IsBoolTrue("[async]") {
+				var wg sync.WaitGroup
 				wg.Add(1)
 				crud_wait_group(*trace_id, &wg, "create")
 			}			
 			
 			queue_obj.PushBack(request)
 
-			wakeup_processor_errors := wakeup_processor(*queue, *trace_id)
-			if wakeup_processor_errors != nil {
-				process_request_errors = append(process_request_errors, wakeup_processor_errors...)
-			}	
-			
-			if len(process_request_errors) > 0 {
-				http_extension.WriteResponse(w, *request, process_request_errors)
-				return
-			}
+			go wakeup_processor(*queue, *trace_id)
 
 			if !request.IsBoolTrue("[async]") {
 				//result_ptr, found := result_groups[*trace_id]
@@ -424,31 +421,36 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 					process_request_errors = append(process_request_errors, get_wait_group_errors...)
 				}
 
+				get_result_group, get_result_group_errors := crud_result_group(*trace_id, nil, "read")
+				if get_result_group_errors != nil {
+					process_request_errors = append(process_request_errors, get_result_group_errors...)
+				}
+
 				if len(process_request_errors) > 0 {
 					http_extension.WriteResponse(w, *request, process_request_errors)
 					return
 				}
 
-				if !common.IsNil(get_wait_group) {
+				if common.IsNil(get_result_group) && !common.IsNil(get_wait_group) {
 					get_wait_group.Wait()
-				}
-
-
-				result_group, result_group_errors := crud_result_group(*trace_id, nil, "read")
-				if result_group_errors != nil {
-					process_request_errors = append(process_request_errors, result_group_errors...)
-				} else if common.IsNil(result_group) {
-					process_request_errors = append(process_request_errors, fmt.Errorf("result group is nil"))
+					get_result_group, get_result_group_errors = crud_result_group(*trace_id, nil, "read")
+					if get_result_group_errors != nil {
+						process_request_errors = append(process_request_errors, get_result_group_errors...)
+					} else if common.IsNil(get_result_group) {
+						process_request_errors = append(process_request_errors, fmt.Errorf("result group is nil"))
+					}
 				}
 
 				if len(process_request_errors) > 0 {
 					crud_result_group(*trace_id, nil, "delete")
+					crud_wait_group(*trace_id, nil, "delete")
 					http_extension.WriteResponse(w, *request, process_request_errors)
 					return
 				}
 				
-				request = result_group
+				request = get_result_group
 				crud_result_group(*trace_id, nil, "delete")
+				crud_wait_group(*trace_id, nil, "delete")
 			}
 		} else if queue_mode == "GetAndRemoveFront" {
 			front := queue_obj.GetAndRemoveFront()
@@ -461,9 +463,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		} else if queue_mode == "complete" {
 			if !request.IsBoolTrue("[async]") {
 				crud_result_group(*trace_id, request, "create")
-				crud_wait_group(*trace_id, nil, "done")
-				crud_wait_group(*trace_id, nil, "delete")
-				
+				crud_wait_group(*trace_id, nil, "done-delete")
 				/*wait_group, wait_group_found := wait_groups[*trace_id]
 				if wait_group_found {
 					wait_group.Done()
