@@ -320,25 +320,13 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 		
 		if queue_mode == "PushBack" {
-			cloned_request, cloned_request_errors := request.Clone()
-			if cloned_request_errors != nil {
-				process_request_errors = append(process_request_errors, cloned_request_errors...)
-			} else if common.IsNil(cloned_request) {
-				process_request_errors = append(process_request_errors, fmt.Errorf("cloned request is nil"))
-			}
-
-			if len(process_request_errors) > 0 {
-				http_extension.WriteResponse(w, *request, process_request_errors)
-				return
-			}
-
 			var wg sync.WaitGroup
-			if !cloned_request.IsBoolTrue("[async]") {
+			if !request.IsBoolTrue("[async]") {
 				wg.Add(1)
 				wait_groups[*trace_id] = &wg
 			}			
 			
-			queue_obj.PushBack(cloned_request)
+			queue_obj.PushBack(request)
 
 			wakeup_processor_errors := wakeup_processor(*queue, *trace_id)
 			if wakeup_processor_errors != nil {
@@ -350,7 +338,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 				return
 			}
 
-			if !cloned_request.IsBoolTrue("[async]") {
+			if !request.IsBoolTrue("[async]") {
 				result_ptr, found := result_groups[*trace_id]
 				if !found {
 					wg.Wait()
@@ -367,50 +355,34 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 				empty_map := json.Map{"[queue]":"empty", "[trace_id]":*trace_id, "[queue_mode]":queue_mode, "[async]":*async}
 				request = &empty_map
 			}
-
-			cloned_request, cloned_request_errors := request.Clone()
-			if cloned_request_errors != nil {
-				process_request_errors = append(process_request_errors, cloned_request_errors...)
-			} else if common.IsNil(cloned_request) {
-				process_request_errors = append(process_request_errors, fmt.Errorf("cloned request is nil"))
-			}
-
-			if len(process_request_errors) > 0 {
-				http_extension.WriteResponse(w, *request, process_request_errors)
-				return
-			}
-
-			request = cloned_request
 		} else if queue_mode == "complete" {
 			if !request.IsBoolTrue("[async]") {
-				
-				cloned_request, cloned_request_errors := request.Clone()
-				if cloned_request_errors != nil {
-					process_request_errors = append(process_request_errors, cloned_request_errors...)
-				} else if common.IsNil(cloned_request) {
-					process_request_errors = append(process_request_errors, fmt.Errorf("cloned request is nil"))
-				}
-
-				if len(process_request_errors) > 0 {
-					http_extension.WriteResponse(w, *request, process_request_errors)
-					return
-				}
-
 				fmt.Println(string(body_payload))
-				result_groups[*trace_id] = cloned_request
+				result_groups[*trace_id] = request
 				wait_group, wait_group_found := wait_groups[*trace_id]
 				if wait_group_found {
 					wait_group.Done()
 					delete(wait_groups, *trace_id)
 				}
-				request = cloned_request
 				//todo set errors from payload
 			}
 		} else {
 			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", queue_mode))
 		}
 
-		http_extension.WriteResponse(w, *request, process_request_errors)
+		cloned_request, cloned_request_errors := request.Clone()
+		if cloned_request_errors != nil {
+			process_request_errors = append(process_request_errors, cloned_request_errors...)
+		} else if common.IsNil(cloned_request) {
+			process_request_errors = append(process_request_errors, fmt.Errorf("cloned request is nil"))
+		}
+
+		if len(process_request_errors) > 0 {
+			http_extension.WriteResponse(w, *request, process_request_errors)
+			return
+		}
+
+		http_extension.WriteResponse(w, *cloned_request, process_request_errors)
 	}
 
 	x := QueueServer{
