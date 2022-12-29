@@ -51,6 +51,9 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		return nil, table_names_errors
 	}
 
+	queues["Run_Sync"] = thread_safe.NewQueue()
+
+
 	for _, table_name := range *table_names {
 		queues["CreateRecords_"+table_name] = thread_safe.NewQueue()
 		queues["CreateRecord_"+table_name] = thread_safe.NewQueue()
@@ -303,8 +306,31 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return wakeup_processor_errors
 		}
 
+		parse_waleup_response_json, parse_waleup_response_json_errors := json.ParseJSON(string(wakeup_response_body_payload))
+		if parse_waleup_response_json_errors != nil {
+			wakeup_processor_errors = append(wakeup_processor_errors, parse_waleup_response_json_errors...)
+		} else if common.IsNil(parse_waleup_response_json) {
+			wakeup_processor_errors = append(wakeup_processor_errors, fmt.Errorf("parse_waleup_response_json is nil")) 
+		}
 
-		// check body payload
+		if len(wakeup_processor_errors) > 0 {
+			fmt.Println(wakeup_processor_errors)
+			return wakeup_processor_errors
+		}
+
+		json_wakeup_errors, json_wakeup_errors_errors := parse_waleup_response_json.GetErrors("[errors]")
+		if json_wakeup_errors_errors != nil {
+			wakeup_processor_errors = append(wakeup_processor_errors, json_wakeup_errors_errors...)
+		}
+		
+		if !common.IsNil(json_wakeup_errors) {
+			wakeup_processor_errors = append(wakeup_processor_errors, json_wakeup_errors...) 
+		}
+
+		if len(wakeup_processor_errors) > 0 {
+			fmt.Println(wakeup_processor_errors)
+			return wakeup_processor_errors
+		}
 
 		return nil
 	}
