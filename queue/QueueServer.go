@@ -443,13 +443,14 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s is nil", queue))
 		}
 
-		queue_mode, queue_mode_errors := request.GetStringValue("[queue_mode]")
+		queue_mode, queue_mode_errors := request.GetString("[queue_mode]")
 		if queue_mode_errors != nil {
 			process_request_errors = append(process_request_errors, queue_mode_errors...)
-		} else if queue_mode == "" {
-			queue_mode = "PushBack"
-			request.SetStringValue("[queue_mode]", queue_mode)
-		}
+		} else if common.IsNil(queue_mode) {
+			temp_queue_mode := "PushBack"
+			request.SetString("[queue_mode]", &temp_queue_mode)
+			queue_mode = &temp_queue_mode
+		} 
 
 		async, async_errors := request.GetBool("[async]")
 		if async_errors != nil {
@@ -465,7 +466,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return
 		}
 		
-		if queue_mode == "PushBack" {
+		if *queue_mode == "PushBack" {
 			
 			if !request.IsBoolTrue("[async]") {
 				var wg sync.WaitGroup
@@ -515,7 +516,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 				crud_result_group(*trace_id, nil, "delete")
 				crud_wait_group(*trace_id, nil, "delete")
 			}
-		} else if queue_mode == "GetAndRemoveFront" {
+		} else if *queue_mode == "GetAndRemoveFront" {
 			front := queue_obj.GetAndRemoveFront()
 			if front != nil {
 				request = front
@@ -524,7 +525,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 				empty_payload := json.NewMapOfValues(&empty_map)
 				request = empty_payload
 			}
-		} else if queue_mode == "complete" {
+		} else if *queue_mode == "complete" {
 			if !request.IsBoolTrue("[async]") {
 				crud_result_group(*trace_id, request, "create")
 				crud_wait_group(*trace_id, nil, "done-delete")
@@ -536,7 +537,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 				//todo set errors from payload
 			}
 		} else {
-			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", queue_mode))
+			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", *queue_mode))
 		}
 
 		cloned_request, cloned_request_errors := request.Clone()
