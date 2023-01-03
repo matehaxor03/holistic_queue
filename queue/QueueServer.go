@@ -107,6 +107,41 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	//todo: add filters to fields
+	data := json.NewMapValue()
+	data.SetMapValue("[fields]", json.NewMapValue())
+	data.SetMapValue("[schema]", json.NewMapValue())
+
+	map_system_fields := json.NewMapValue()
+	map_system_fields.SetObjectForMap("[port]", port)
+	map_system_fields.SetObjectForMap("[server_crt_path]", server_crt_path)
+	map_system_fields.SetObjectForMap("[server_key_path]", server_key_path)
+	data.SetMapValue("[system_fields]", map_system_fields)
+
+	///
+
+	//todo: add filters to fields
+
+	map_system_schema := json.NewMapValue()
+	
+	map_port := json.NewMapValue()
+	map_port.SetStringValue("type", "string")
+	map_system_schema.SetMapValue("[port]", map_port)
+
+	map_server_crt_path := json.NewMapValue()
+	map_server_crt_path.SetStringValue("type", "string")
+	map_system_schema.SetMapValue("[server_crt_path]", map_server_crt_path)
+
+	map_server_key_path := json.NewMapValue()
+	map_server_key_path.SetStringValue("type", "string")
+	map_system_schema.SetMapValue("[server_key_path]", map_server_key_path)
+
+	map_queue_port := json.NewMapValue()
+	map_queue_port.SetStringValue("type", "string")
+	map_system_schema.SetMapValue("[server_key_path]", map_queue_port)
+
+	data.SetMapValue("[system_schema]", map_system_schema)
+	
+/*
 	data := json.Map{
 		"[fields]": json.Map{},
 		"[schema]": json.Map{},
@@ -120,7 +155,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			"[server_crt_path]": json.Map{"type":"string"},
 			"[server_key_path]": json.Map{"type":"string"},
 		},
-	}
+	}*/
 
 	getData := func() *json.Map {
 		return &data
@@ -262,7 +297,8 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	wakeup_processor := func(queue string, trace_id string) []error {
 		var wakeup_processor_errors []error
 
-		wakeup_payload := json.Map{"[queue]":queue, "[queue_mode]":"WakeUp", "[trace_id]":trace_id}
+		wakeup_payload_map := map[string]interface{}{"[queue]":queue, "[queue_mode]":"WakeUp", "[trace_id]":trace_id}
+		wakeup_payload := json.NewMapOfValues(&wakeup_payload_map)
 		var json_payload_builder strings.Builder
 		wakeup_payload_as_string_errors := wakeup_payload.ToJSONString(&json_payload_builder)
 
@@ -306,7 +342,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return wakeup_processor_errors
 		}
 
-		parse_waleup_response_json, parse_waleup_response_json_errors := json.ParseJSON(string(wakeup_response_body_payload))
+		parse_waleup_response_json, parse_waleup_response_json_errors := json.Parse(string(wakeup_response_body_payload))
 		if parse_waleup_response_json_errors != nil {
 			wakeup_processor_errors = append(wakeup_processor_errors, parse_waleup_response_json_errors...)
 		} else if common.IsNil(parse_waleup_response_json) {
@@ -357,7 +393,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return
 		}
 		
-		request, request_errors := json.ParseJSON(string(body_payload))
+		request, request_errors := json.Parse(string(body_payload))
 		if request_errors != nil {
 			process_request_errors = append(process_request_errors, request_errors...)
 		}
@@ -484,8 +520,9 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			if front != nil {
 				request = front
 			} else {
-				empty_map := json.Map{"[queue]":"empty", "[trace_id]":*trace_id, "[queue_mode]":queue_mode, "[async]":*async}
-				request = &empty_map
+				empty_map := map[string]interface{}{"[queue]":"empty", "[trace_id]":*trace_id, "[queue_mode]":queue_mode, "[async]":*async}
+				empty_payload := json.NewMapOfValues(&empty_map)
+				request = empty_payload
 			}
 		} else if queue_mode == "complete" {
 			if !request.IsBoolTrue("[async]") {
