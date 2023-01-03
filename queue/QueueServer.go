@@ -393,6 +393,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return
 		}
 		
+		fmt.Println(string(body_payload))
 		request, request_errors := json.Parse(string(body_payload))
 		if request_errors != nil {
 			process_request_errors = append(process_request_errors, request_errors...)
@@ -529,6 +530,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			if !request.IsBoolTrue("[async]") {
 				crud_result_group(*trace_id, request, "create")
 				crud_wait_group(*trace_id, nil, "done-delete")
+				//fmt.Println(request)
 				/*wait_group, wait_group_found := wait_groups[*trace_id]
 				if wait_group_found {
 					wait_group.Done()
@@ -540,16 +542,12 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", *queue_mode))
 		}
 
+		
 		cloned_request, cloned_request_errors := request.Clone()
 		if cloned_request_errors != nil {
 			process_request_errors = append(process_request_errors, cloned_request_errors...)
 		} else if common.IsNil(cloned_request) {
 			process_request_errors = append(process_request_errors, fmt.Errorf("cloned request is nil"))
-		}
-
-		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, *request, process_request_errors)
-			return
 		}
 
 		http_extension.WriteResponse(w, *cloned_request, process_request_errors)
