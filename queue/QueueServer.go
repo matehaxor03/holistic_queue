@@ -333,9 +333,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_response_body_payload_error)
 		} else if wakeup_response_body_payload == nil {
 			wakeup_processor_errors = append(wakeup_processor_errors, fmt.Errorf("response to wakeup processor is nil"))
-		} else {
-			fmt.Println(string(wakeup_response_body_payload))
-		}
+		} 
 
 		if len(wakeup_processor_errors) > 0 {
 			fmt.Println(wakeup_processor_errors)
@@ -393,7 +391,6 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return
 		}
 		
-		fmt.Println(string(body_payload))
 		request, request_errors := json.Parse(string(body_payload))
 		if request_errors != nil {
 			process_request_errors = append(process_request_errors, request_errors...)
@@ -530,13 +527,6 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			if !request.IsBoolTrue("[async]") {
 				crud_result_group(*trace_id, request, "create")
 				crud_wait_group(*trace_id, nil, "done-delete")
-				//fmt.Println(request)
-				/*wait_group, wait_group_found := wait_groups[*trace_id]
-				if wait_group_found {
-					wait_group.Done()
-					delete(wait_groups, *trace_id)
-				}*/
-				//todo set errors from payload
 			}
 		} else {
 			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", *queue_mode))
