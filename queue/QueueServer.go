@@ -4,14 +4,16 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	//"encoding/json"
 	"bytes"
 	"crypto/tls"
-	class "github.com/matehaxor03/holistic_db_client/class"
+	db_client "github.com/matehaxor03/holistic_db_client/db_client"
+	dao "github.com/matehaxor03/holistic_db_client/dao"
 	common "github.com/matehaxor03/holistic_common/common"
 	json "github.com/matehaxor03/holistic_json/json"
 	thread_safe "github.com/matehaxor03/holistic_thread_safe/thread_safe"
 	http_extension "github.com/matehaxor03/holistic_http/http_extension"
+	helper "github.com/matehaxor03/holistic_db_client/helper"
+
 
 	"io/ioutil"
 	"sync"
@@ -30,7 +32,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	lock_result_group := &sync.Mutex{}
 	result_groups := make(map[string](*json.Map))
 
-	client_manager, client_manager_errors := class.NewClientManager()
+	client_manager, client_manager_errors := db_client.NewClientManager()
 	if client_manager_errors != nil {
 		return nil, client_manager_errors
 	}
@@ -101,7 +103,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	queues["GetTableNames"] = thread_safe.NewQueue()
 	
 
-	domain_name, domain_name_errors := class.NewDomainName(processor_domain_name)
+	domain_name, domain_name_errors := dao.NewDomainName(processor_domain_name)
 	if domain_name_errors != nil {
 		errors = append(errors, domain_name_errors...)
 	}
@@ -140,22 +142,6 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	map_system_schema.SetMapValue("[server_key_path]", map_queue_port)
 
 	data.SetMapValue("[system_schema]", map_system_schema)
-	
-/*
-	data := json.Map{
-		"[fields]": json.Map{},
-		"[schema]": json.Map{},
-		"[system_fields]": json.Map{
-			"[port]":&port,
-			"[server_crt_path]":&server_crt_path,
-			"[server_key_path]":&server_key_path,
-		},
-		"[system_schema]":json.Map{
-			"[port]": json.Map{"type":"string"},
-			"[server_crt_path]": json.Map{"type":"string"},
-			"[server_key_path]": json.Map{"type":"string"},
-		},
-	}*/
 
 	getData := func() *json.Map {
 		return &data
@@ -163,7 +149,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 
 	
 	getPort := func() (string, []error) {
-		temp_value, temp_value_errors := class.GetField(struct_type, getData(), "[system_schema]", "[system_fields]", "[port]", "string")
+		temp_value, temp_value_errors := helper.GetField(struct_type, getData(), "[system_schema]", "[system_fields]", "[port]", "string")
 		if temp_value_errors != nil {
 			return "",temp_value_errors
 		}
@@ -171,7 +157,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	getServerCrtPath := func() (string, []error) {
-		temp_value, temp_value_errors := class.GetField(struct_type, getData(), "[system_schema]", "[system_fields]", "[server_crt_path]", "string")
+		temp_value, temp_value_errors := helper.GetField(struct_type, getData(), "[system_schema]", "[system_fields]", "[server_crt_path]", "string")
 		if temp_value_errors != nil {
 			return "",temp_value_errors
 		}
@@ -179,16 +165,15 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	getServerKeyPath := func() (string, []error) {
-		temp_value, temp_value_errors := class.GetField(struct_type, getData(), "[system_schema]", "[system_fields]", "[server_key_path]", "string")
+		temp_value, temp_value_errors := helper.GetField(struct_type, getData(), "[system_schema]", "[system_fields]", "[server_key_path]", "string")
 		if temp_value_errors != nil {
 			return "",temp_value_errors
 		}
 		return temp_value.(string), nil
 	}
 
-
 	validate := func() []error {
-		return class.ValidateData(getData(), "HolisticQueueServer")
+		return dao.ValidateData(getData(), "HolisticQueueServer")
 	}
 
 	domain_name_value, domain_name_value_errors := domain_name.GetDomainName()
@@ -283,16 +268,6 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return nil, errors
 		}
 	}
-
-	/*
-		setHolisticQueueServer := func(holisic_queue_server *HolisticQueueServer) {
-			this_holisic_queue_server = holisic_queue_server
-		}*/
-
-	/*
-		getHolisticQueueServer := func() *HolisticQueueServer {
-			return this_holisic_queue_server
-		}*/
 
 	wakeup_processor := func(queue string, trace_id string) []error {
 		var wakeup_processor_errors []error
