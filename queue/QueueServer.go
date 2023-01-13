@@ -6,7 +6,7 @@ import (
 	"strings"
 	"bytes"
 	"crypto/tls"
-	db_client "github.com/matehaxor03/holistic_db_client/db_client"
+	validate "github.com/matehaxor03/holistic_db_client/validate"
 	dao "github.com/matehaxor03/holistic_db_client/dao"
 	common "github.com/matehaxor03/holistic_common/common"
 	json "github.com/matehaxor03/holistic_json/json"
@@ -25,27 +25,24 @@ type QueueServer struct {
 }
 
 func NewQueueServer(port string, server_crt_path string, server_key_path string, processor_domain_name string, processor_port string) (*QueueServer, []error) {
-	struct_type := "*queue.QueueServer"
+	verfiy := validate.NewValidator()
 	var errors []error
 	lock_wait_group := &sync.Mutex{}
 	wait_groups := make(map[string]*(sync.WaitGroup))
 	lock_result_group := &sync.Mutex{}
 	result_groups := make(map[string](*json.Map))
 
-	client_manager, client_manager_errors := db_client.NewClientManager()
+	client_manager, client_manager_errors := dao.NewClientManager()
 	if client_manager_errors != nil {
 		return nil, client_manager_errors
 	}
 
-	test_read_client, test_read_client_errors := client_manager.GetClient("holistic_db_config#127.0.0.1#3306#holistic#holistic_read")
+	test_read_client, test_read_client_errors := client_manager.GetClient("127.0.0.1", "3306", "holistic", "holistic_r")
 	if test_read_client_errors != nil {
 		return nil, test_read_client_errors
 	}
 	
-	test_read_database, test_read_database_errors := test_read_client.GetDatabase()
-	if test_read_database_errors != nil {
-		return nil, test_read_database_errors
-	}
+	test_read_database := test_read_client.GetDatabase()
 
 	queues := make(map[string](*thread_safe.Queue))
 	table_names, table_names_errors := test_read_database.GetTableNames()
@@ -56,7 +53,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	queues["Run_Sync"] = thread_safe.NewQueue()
 
 
-	for _, table_name := range *table_names {
+	for _, table_name := range table_names {
 		queues["CreateRecords_"+table_name] = thread_safe.NewQueue()
 		queues["CreateRecord_"+table_name] = thread_safe.NewQueue()
 		queues["ReadRecords_"+table_name] = thread_safe.NewQueue()
@@ -103,7 +100,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	queues["GetTableNames"] = thread_safe.NewQueue()
 	
 
-	domain_name, domain_name_errors := dao.NewDomainName(processor_domain_name)
+	domain_name, domain_name_errors := dao.NewDomainName(verfiy, processor_domain_name)
 	if domain_name_errors != nil {
 		errors = append(errors, domain_name_errors...)
 	}
@@ -149,7 +146,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 
 	
 	getPort := func() (string, []error) {
-		temp_value, temp_value_errors := helper.GetField(struct_type, getData(), "[system_schema]", "[system_fields]", "[port]", "string")
+		temp_value, temp_value_errors := helper.GetField(*getData(), "[system_schema]", "[system_fields]", "[port]", "string")
 		if temp_value_errors != nil {
 			return "",temp_value_errors
 		}
@@ -157,7 +154,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	getServerCrtPath := func() (string, []error) {
-		temp_value, temp_value_errors := helper.GetField(struct_type, getData(), "[system_schema]", "[system_fields]", "[server_crt_path]", "string")
+		temp_value, temp_value_errors := helper.GetField(*getData(), "[system_schema]", "[system_fields]", "[server_crt_path]", "string")
 		if temp_value_errors != nil {
 			return "",temp_value_errors
 		}
@@ -165,7 +162,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	getServerKeyPath := func() (string, []error) {
-		temp_value, temp_value_errors := helper.GetField(struct_type, getData(), "[system_schema]", "[system_fields]", "[server_key_path]", "string")
+		temp_value, temp_value_errors := helper.GetField(*getData(), "[system_schema]", "[system_fields]", "[server_key_path]", "string")
 		if temp_value_errors != nil {
 			return "",temp_value_errors
 		}
@@ -176,10 +173,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		return dao.ValidateData(getData(), "HolisticQueueServer")
 	}
 
-	domain_name_value, domain_name_value_errors := domain_name.GetDomainName()
-	if domain_name_value_errors != nil {
-		return nil, domain_name_value_errors
-	}
+	domain_name_value := domain_name.GetDomainName()
 
 	processor_url := fmt.Sprintf("https://%s:%s/", domain_name_value, processor_port)
 	transport_config := &http.Transport{
