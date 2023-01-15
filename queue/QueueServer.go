@@ -405,9 +405,9 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 
 		queue_obj, queue_found := queues[*queue]
 		if !queue_found {	
-			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s not found", queue))
+			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s not found", *queue))
 		} else if queue_obj == nil {
-			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s is nil", queue))
+			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s is nil", *queue))
 		}
 
 		queue_mode, queue_mode_errors := request.GetString("[queue_mode]")
