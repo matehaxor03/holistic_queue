@@ -25,6 +25,7 @@ type QueueServer struct {
 	GetCompleteFunction func() (*func(json.Map) []error) 
 	GetNextMessageFunction func() (*func(string, string) (json.Map, []error))
 	GetPushBackFunction func() (*func(string,*json.Map) (*json.Map, []error))
+	SetProcessorCallbackFunction func(*func(request json.Map) (json.Map, []error))
 }
 
 func NewQueueServer(port string, server_crt_path string, server_key_path string, processor_domain_name string, processor_port string) (*QueueServer, []error) {
@@ -37,6 +38,8 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	get_next_message_lock := &sync.RWMutex{}
 	complete_message_lock := &sync.RWMutex{}
 	//push_message_lock := &sync.RWMutex{}
+
+	var processor_callback_function *func(request json.Map) (json.Map, []error) 
 
 
 	client_manager, client_manager_errors := dao.NewClientManager()
@@ -271,10 +274,21 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	wakeup_processor := func(queue string, trace_id string) []error {
-		var wakeup_processor_errors []error
-
 		wakeup_payload_map := map[string]interface{}{"[queue]":queue, "[queue_mode]":"WakeUp", "[trace_id]":trace_id}
 		wakeup_payload := json.NewMapOfValues(&wakeup_payload_map)
+		
+		if processor_callback_function != nil {
+			_, processor_callback_function_errors := (*processor_callback_function)(*wakeup_payload)
+			if processor_callback_function_errors != nil {
+				return processor_callback_function_errors
+			} else {
+				return nil
+			}
+		}
+
+		var wakeup_processor_errors []error
+
+		
 		var json_payload_builder strings.Builder
 		wakeup_payload_as_string_errors := wakeup_payload.ToJSONString(&json_payload_builder)
 
@@ -618,6 +632,10 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	x := QueueServer{
+		SetProcessorCallbackFunction: func(function *func(request json.Map) (json.Map, []error)) {
+			temp_function := function
+			processor_callback_function = temp_function
+		},
 		Start: func() []error {
 			var start_server_errors []error
 			http.HandleFunc("/queue_api", processRequest)
