@@ -345,6 +345,32 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		return nil*/
 	}
 
+	get_next_message_from_queue := func(queue string, traceid string) (*json.Map, []error) {
+		var errors []error
+		var result *json.Map
+		queue_obj, queue_found := queues[queue]
+		if !queue_found {	
+			errors = append(errors, fmt.Errorf("[queue] %s not found", queue))
+		} else if queue_obj == nil {
+			errors = append(errors, fmt.Errorf("[queue] %s is nil", queue))
+		}
+
+		if len(errors) > 0 {
+			return nil, errors
+		}
+		
+		front := queue_obj.GetAndRemoveFront()
+		if front != nil {
+			result = front
+		} else {
+			empty_map := map[string]interface{}{"[queue]":"empty", "[trace_id]":traceid, "[queue_mode]":"GetAndRemoveFront", "[async]":true}
+			empty_payload := json.NewMapOfValues(&empty_map)
+			result = empty_payload
+		}
+
+		return result, nil
+	}
+
 	complete_request := func(request *json.Map) []error {
 		var errors []error
 		if common.IsNil(request) {
@@ -518,14 +544,23 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 				crud_wait_group(*trace_id, nil, "delete")
 			}
 		} else if *queue_mode == "GetAndRemoveFront" {
-			front := queue_obj.GetAndRemoveFront()
+			next_message, next_message_errors := get_next_message_from_queue(*queue, *trace_id)
+			if next_message_errors != nil {
+				process_request_errors = append(process_request_errors, next_message_errors...)
+			} else if common.IsNil(next_message) {
+				process_request_errors = append(process_request_errors, fmt.Errorf("next_message is nil"))
+			} else {
+				request = next_message
+			}
+			
+			/*front := queue_obj.GetAndRemoveFront()
 			if front != nil {
 				request = front
 			} else {
 				empty_map := map[string]interface{}{"[queue]":"empty", "[trace_id]":*trace_id, "[queue_mode]":queue_mode, "[async]":*async}
 				empty_payload := json.NewMapOfValues(&empty_map)
 				request = empty_payload
-			}
+			}*/
 		} else if *queue_mode == "complete" {
 			complete_request(request)
 			/*if !request.IsBoolTrue("[async]") {
