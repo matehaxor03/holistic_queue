@@ -36,6 +36,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	result_groups := make(map[string](*json.Map))
 	get_next_message_lock := &sync.RWMutex{}
 	complete_message_lock := &sync.RWMutex{}
+	//push_message_lock := &sync.RWMutex{}
 
 
 	client_manager, client_manager_errors := dao.NewClientManager()
@@ -401,6 +402,8 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	push_back_process_request := func(queue string, request *json.Map) (*json.Map, []error) {
+		//push_message_lock.Lock()
+		//defer push_message_lock.Unlock()
 		var errors []error
 
 		queue_obj, queue_found := queues[queue]
