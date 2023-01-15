@@ -180,7 +180,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 
 	domain_name_value := domain_name.GetDomainName()
 
-	processor_url := fmt.Sprintf("https://%s:%s/", domain_name_value, processor_port)
+	processor_url := fmt.Sprintf("https://%s:%s/processor_api", domain_name_value, processor_port)
 	transport_config := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
@@ -588,7 +588,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	x := QueueServer{
 		Start: func() []error {
 			var start_server_errors []error
-			http.HandleFunc("/", processRequest)
+			http.HandleFunc("/queue_api", processRequest)
 
 			temp_port, temp_port_errors := getPort()
 			if temp_port_errors != nil {
