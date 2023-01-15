@@ -33,6 +33,9 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	wait_groups := make(map[string]*(sync.WaitGroup))
 	lock_result_group := &sync.Mutex{}
 	result_groups := make(map[string](*json.Map))
+	get_next_message_lock := &sync.RWMutex{}
+	complete_message_lock := &sync.RWMutex{}
+
 
 	client_manager, client_manager_errors := dao.NewClientManager()
 	if client_manager_errors != nil {
@@ -348,6 +351,8 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	get_next_message_from_queue := func(queue string, traceid string) (json.Map, []error) {
+		get_next_message_lock.Lock()
+		defer get_next_message_lock.Unlock()
 		var errors []error
 		var result json.Map
 		queue_obj, queue_found := queues[queue]
@@ -374,6 +379,8 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	complete_request := func(request json.Map) []error {
+		complete_message_lock.Lock()
+		defer complete_message_lock.Unlock()
 		var errors []error
 		trace_id, trace_id_errors := request.GetString("[trace_id]")
 		if trace_id_errors != nil {
