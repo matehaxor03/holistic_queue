@@ -286,8 +286,15 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		if wakeup_request_error != nil {
 			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_request_error)
 		}
+		
+		if len(wakeup_processor_errors) > 0 {
+			fmt.Println(wakeup_processor_errors)
+			return wakeup_processor_errors
+		}
 
-		wakeup_http_response, wakeup_http_response_error := http_client.Do(wakeup_request)
+		http_client.Do(wakeup_request)
+		return nil
+		/*wakeup_http_response, wakeup_http_response_error := http_client.Do(wakeup_request)
 		if wakeup_http_response_error != nil {
 			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_http_response_error)
 		}
@@ -333,6 +340,33 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		if len(wakeup_processor_errors) > 0 {
 			fmt.Println(wakeup_processor_errors)
 			return wakeup_processor_errors
+		}
+
+		return nil*/
+	}
+
+	complete_request := func(request *json.Map) []error {
+		var errors []error
+		if common.IsNil(request) {
+			errors = append(errors, fmt.Errorf("request is nil"))
+			return errors
+		}
+
+
+		trace_id, trace_id_errors := request.GetString("[trace_id]")
+		if trace_id_errors != nil {
+			errors = append(errors, trace_id_errors...)
+		} else if common.IsNil(trace_id) {
+			errors = append(errors, fmt.Errorf("completed request [trace_id] is nil"))
+		}
+
+		if len(errors) > 0 {
+			return errors
+		}
+
+		if !request.IsBoolTrue("[async]") {
+			crud_result_group(*trace_id, request, "create")
+			crud_wait_group(*trace_id, nil, "done-delete")
 		}
 
 		return nil
@@ -493,10 +527,11 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 				request = empty_payload
 			}
 		} else if *queue_mode == "complete" {
-			if !request.IsBoolTrue("[async]") {
+			complete_request(request)
+			/*if !request.IsBoolTrue("[async]") {
 				crud_result_group(*trace_id, request, "create")
 				crud_wait_group(*trace_id, nil, "done-delete")
-			}
+			}*/
 		} else {
 			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", *queue_mode))
 		}
