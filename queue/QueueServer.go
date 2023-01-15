@@ -297,9 +297,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return wakeup_processor_errors
 		}
 
-		http_client.Do(wakeup_request)
-		return nil
-		/*wakeup_http_response, wakeup_http_response_error := http_client.Do(wakeup_request)
+		wakeup_http_response, wakeup_http_response_error := http_client.Do(wakeup_request)
 		if wakeup_http_response_error != nil {
 			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_http_response_error)
 		}
@@ -347,7 +345,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return wakeup_processor_errors
 		}
 
-		return nil*/
+		return nil
 	}
 
 	get_next_message_from_queue := func(queue string, traceid string) (json.Map, []error) {
