@@ -22,6 +22,8 @@ import (
 
 type QueueServer struct {
 	Start func() []error
+	GetCompleteFunction func() (*func(json.Map) []error) 
+	GetNextMessageFunction func() (*func(string, string) (json.Map, []error))
 }
 
 func NewQueueServer(port string, server_crt_path string, server_key_path string, processor_domain_name string, processor_port string) (*QueueServer, []error) {
@@ -345,9 +347,9 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		return nil*/
 	}
 
-	get_next_message_from_queue := func(queue string, traceid string) (*json.Map, []error) {
+	get_next_message_from_queue := func(queue string, traceid string) (json.Map, []error) {
 		var errors []error
-		var result *json.Map
+		var result json.Map
 		queue_obj, queue_found := queues[queue]
 		if !queue_found {	
 			errors = append(errors, fmt.Errorf("[queue] %s not found", queue))
@@ -356,29 +358,23 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(errors) > 0 {
-			return nil, errors
+			return json.NewMapValue(), errors
 		}
 		
 		front := queue_obj.GetAndRemoveFront()
 		if front != nil {
-			result = front
+			result = *front
 		} else {
 			empty_map := map[string]interface{}{"[queue]":"empty", "[trace_id]":traceid, "[queue_mode]":"GetAndRemoveFront", "[async]":true}
 			empty_payload := json.NewMapOfValues(&empty_map)
-			result = empty_payload
+			result = *empty_payload
 		}
 
 		return result, nil
 	}
 
-	complete_request := func(request *json.Map) []error {
+	complete_request := func(request json.Map) []error {
 		var errors []error
-		if common.IsNil(request) {
-			errors = append(errors, fmt.Errorf("request is nil"))
-			return errors
-		}
-
-
 		trace_id, trace_id_errors := request.GetString("[trace_id]")
 		if trace_id_errors != nil {
 			errors = append(errors, trace_id_errors...)
@@ -391,7 +387,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if !request.IsBoolTrue("[async]") {
-			crud_result_group(*trace_id, request, "create")
+			crud_result_group(*trace_id, &request, "create")
 			crud_wait_group(*trace_id, nil, "done-delete")
 		}
 
@@ -550,7 +546,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			} else if common.IsNil(next_message) {
 				process_request_errors = append(process_request_errors, fmt.Errorf("next_message is nil"))
 			} else {
-				request = next_message
+				request = &next_message
 			}
 			
 			/*front := queue_obj.GetAndRemoveFront()
@@ -562,7 +558,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 				request = empty_payload
 			}*/
 		} else if *queue_mode == "complete" {
-			complete_request(request)
+			complete_request(*request)
 			/*if !request.IsBoolTrue("[async]") {
 				crud_result_group(*trace_id, request, "create")
 				crud_wait_group(*trace_id, nil, "done-delete")
@@ -612,6 +608,14 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			}
 
 			return nil
+		},
+		GetCompleteFunction: func() (*func(json.Map) []error) {
+			function := complete_request
+			return &function;
+		},
+		GetNextMessageFunction: func() (*func(string, string) (json.Map,[]error)) {
+			function := get_next_message_from_queue
+			return &function;
 		},
 	}
 	//setHolisticQueueServer(&x)
