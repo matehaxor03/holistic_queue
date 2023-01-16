@@ -489,7 +489,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, json.Map{}, process_request_errors)
+			http_extension.WriteResponse(w, json.NewMap(), process_request_errors)
 			return
 		}
 
@@ -499,7 +499,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, json.Map{}, process_request_errors)
+			http_extension.WriteResponse(w, json.NewMap(), process_request_errors)
 			return
 		}
 		
@@ -513,7 +513,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, json.Map{}, process_request_errors)
+			http_extension.WriteResponse(w, json.NewMap(), process_request_errors)
 			return
 		}
 
@@ -525,7 +525,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, json.Map{}, process_request_errors)
+			http_extension.WriteResponse(w, json.NewMap(), process_request_errors)
 			return
 		}
 
@@ -542,7 +542,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, json.Map{}, process_request_errors)
+			http_extension.WriteResponse(w, json.NewMap(), process_request_errors)
 			return
 		} 
 
@@ -572,7 +572,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 
 		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, *request, process_request_errors)
+			http_extension.WriteResponse(w, request, process_request_errors)
 			return
 		}
 		
@@ -609,7 +609,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			process_request_errors = append(process_request_errors, fmt.Errorf("cloned request is nil"))
 		}
 
-		http_extension.WriteResponse(w, *cloned_request, process_request_errors)
+		http_extension.WriteResponse(w, cloned_request, process_request_errors)
 	}
 
 	x := QueueServer{
