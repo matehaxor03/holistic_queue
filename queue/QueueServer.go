@@ -37,7 +37,6 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	result_groups := make(map[string](*json.Map))
 	get_next_message_lock := &sync.RWMutex{}
 	complete_message_lock := &sync.RWMutex{}
-	//push_message_lock := &sync.RWMutex{}
 
 	var processor_callback_function *func(request json.Map) (json.Map, []error) 
 
@@ -125,8 +124,6 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	map_system_fields.SetObjectForMap("[server_crt_path]", server_crt_path)
 	map_system_fields.SetObjectForMap("[server_key_path]", server_key_path)
 	data.SetMapValue("[system_fields]", map_system_fields)
-
-	///
 
 	//todo: add filters to fields
 
@@ -416,8 +413,6 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	}
 
 	push_back_process_request := func(queue string, request *json.Map) (*json.Map, []error) {
-		//push_message_lock.Lock()
-		//defer push_message_lock.Unlock()
 		var errors []error
 
 		queue_obj, queue_found := queues[queue]
@@ -449,7 +444,6 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		go wakeup_processor(queue, *trace_id)
 
 		if !request.IsBoolTrue("[async]") {
-			//result_ptr, found := result_groups[*trace_id]
 			get_wait_group, get_wait_group_errors := crud_wait_group(*trace_id, nil, "read")
 			if get_wait_group_errors != nil {
 				errors = append(errors, get_wait_group_errors...)
@@ -601,21 +595,8 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			} else {
 				request = &next_message
 			}
-			
-			/*front := queue_obj.GetAndRemoveFront()
-			if front != nil {
-				request = front
-			} else {
-				empty_map := map[string]interface{}{"[queue]":"empty", "[trace_id]":*trace_id, "[queue_mode]":queue_mode, "[async]":*async}
-				empty_payload := json.NewMapOfValues(&empty_map)
-				request = empty_payload
-			}*/
 		} else if *queue_mode == "complete" {
 			complete_request(*request)
-			/*if !request.IsBoolTrue("[async]") {
-				crud_result_group(*trace_id, request, "create")
-				crud_wait_group(*trace_id, nil, "done-delete")
-			}*/
 		} else {
 			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", *queue_mode))
 		}
