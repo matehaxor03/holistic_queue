@@ -24,7 +24,7 @@ type QueueController struct {
 	//Start func() []error
 	GetCompleteFunction func() (*func(json.Map) []error) 
 	GetNextMessageFunction func() (*func(string) (json.Map, []error))
-	GetPushBackFunction func() (*func(*json.Map) (*json.Map, []error))
+	GetPushBackFunction func() (*func(json.Map) (*json.Map, []error))
 	SetWakeupProcessorManagerFunction func(*func())
 	GetProcessRequestFunction func() *func(w http.ResponseWriter, req *http.Request)
 }
@@ -411,7 +411,7 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 		return nil
 	}
 
-	push_back_process_request := func(request *json.Map) (*json.Map, []error) {
+	push_back_process_request := func(request json.Map) (*json.Map, []error) {
 		var errors []error
 
 		trace_id, trace_id_errors := request.GetString("[trace_id]")
@@ -431,7 +431,7 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 			crud_wait_group(*trace_id, &wg, "create")
 		}			
 		
-		queue_obj.PushBack(request)
+		queue_obj.PushBack(&request)
 
 		go wakeup_processor()
 
@@ -466,11 +466,11 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 				return nil, errors
 			}
 			
-			request = get_result_group
+			request = *get_result_group
 			crud_result_group(*trace_id, nil, "delete")
 			crud_wait_group(*trace_id, nil, "delete")	
 		} 
-		return request, nil
+		return &request, nil
 	}
 
 	process_request_function := func(w http.ResponseWriter, req *http.Request) {
@@ -562,7 +562,7 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 		}
 		
 		if *queue_mode == "PushBack" {
-			push_back_response, push_back_response_errors := push_back_process_request(request)
+			push_back_response, push_back_response_errors := push_back_process_request(*request)
 			if push_back_response_errors != nil {
 				process_request_errors = append(process_request_errors, push_back_response_errors...)
 			} else if common.IsNil(push_back_response) {
@@ -647,7 +647,7 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 			function := get_next_message_from_queue
 			return &function
 		},
-		GetPushBackFunction: func() (*func(*json.Map) (*json.Map, []error)) {
+		GetPushBackFunction: func() (*func(json.Map) (*json.Map, []error)) {
 			function := push_back_process_request
 			return &function
 		},
