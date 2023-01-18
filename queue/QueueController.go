@@ -25,8 +25,7 @@ type QueueController struct {
 	GetCompleteFunction func() (*func(json.Map) []error) 
 	GetNextMessageFunction func() (*func(string) (json.Map, []error))
 	GetPushBackFunction func() (*func(*json.Map) (*json.Map, []error))
-	SetProcessorCallbackFunction func(*func(request json.Map) (json.Map, []error))
-	ProcessRequest func(w http.ResponseWriter, req *http.Request)
+	SetWakeupProcessorManagerFunction func(*func())
 	GetProcessRequestFunction func() *func(w http.ResponseWriter, req *http.Request)
 }
 
@@ -42,7 +41,7 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 	//get_queue_by_name_lock := &sync.RWMutex{}
 
 
-	var processor_callback_function *func(request json.Map) (json.Map, []error) 
+	var processor_callback_function *func()
 
 	/*
 	client_manager, client_manager_errors := dao.NewClientManager()
@@ -285,12 +284,8 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 		wakeup_payload := json.NewMapOfValues(&wakeup_payload_map)
 		
 		if processor_callback_function != nil {
-			_, processor_callback_function_errors := (*processor_callback_function)(*wakeup_payload)
-			if processor_callback_function_errors != nil {
-				return processor_callback_function_errors
-			} else {
-				return nil
-			}
+			(*processor_callback_function)()
+			return nil
 		}
 
 		var wakeup_processor_errors []error
@@ -603,7 +598,7 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 	}
 
 	x := QueueController{
-		SetProcessorCallbackFunction: func(function *func(request json.Map) (json.Map, []error)) {
+		SetWakeupProcessorManagerFunction: func(function *func()) {
 			temp_function := function
 			processor_callback_function = temp_function
 		},
