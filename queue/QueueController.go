@@ -29,6 +29,7 @@ type QueueController struct {
 
 func NewQueueController(queue_name string, processor_domain_name string, processor_port string) (*QueueController, []error) {
 	verfiy := validate.NewValidator()
+	var this_queue_controller *QueueController
 	var errors []error
 	lock_wait_group := &sync.Mutex{}
 	wait_groups := make(map[string]*(sync.WaitGroup))
@@ -37,6 +38,8 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 	get_next_message_lock := &sync.RWMutex{}
 	complete_message_lock := &sync.RWMutex{}
 	var processor_callback_function *func()
+	var messageCountLock sync.Mutex
+	var messageCount uint64
 
 	queue_obj := thread_safe.NewQueue()
 
@@ -55,6 +58,21 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 	http_client := http.Client{
 		Timeout:   120 * time.Second,
 		Transport: transport_config,
+	}
+
+	incrementMessageCount := func() uint64 {
+		messageCountLock.Lock()
+		defer messageCountLock.Unlock()
+		messageCount++
+		return messageCount
+	}
+
+	set_queue_controller := func(queue_controller *QueueController) {
+		this_queue_controller = queue_controller
+	}
+
+	get_queue_controller := func() *QueueController {
+		return this_queue_controller
 	}
 
 	crud_wait_group := func(trace_id string, wait_group *(sync.WaitGroup), mode string)  (*(sync.WaitGroup), []error) {
@@ -378,15 +396,16 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 		}
 
 		trace_id, trace_id_errors := request.GetString("[trace_id]")
-
-		if *queue == "" {
-			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] has empty value"))
-		}
-
 		if trace_id_errors != nil {
 			process_request_errors = append(process_request_errors, trace_id_errors...)
 		} else if common.IsNil(trace_id) {
-			process_request_errors = append(process_request_errors, fmt.Errorf("[trace_id] is nil"))
+			temp_trace_id := common.GenerateTraceId(incrementMessageCount(), fmt.Sprintf("%s", get_queue_controller()))
+			trace_id = &temp_trace_id
+			request.SetString("[trace_id]", &temp_trace_id)
+		}
+
+		if *queue == "" {
+			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] has empty value"))
 		}
 
 		if len(process_request_errors) > 0 {
@@ -475,6 +494,7 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 			return &function
 		},
 	}
+	set_queue_controller(&x)
 
 	if len(errors) > 0 {
 		return nil, errors
