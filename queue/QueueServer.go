@@ -22,6 +22,7 @@ import (
 
 type QueueServer struct {
 	Start func() []error
+	SetProcessorWakeUpFunctions func(map[string](*func()))
 	GetControllers func() (map[string](*QueueController))
 	GetControllerByName func(controller_name string) (*QueueController, error)
 	GetControllerNames func() []string
@@ -30,7 +31,8 @@ type QueueServer struct {
 func NewQueueServer(port string, server_crt_path string, server_key_path string, processor_domain_name string, processor_port string) (*QueueServer, []error) {
 	//verfiy := validate.NewValidator()
 	var errors []error
-	//lock_wait_group := &sync.Mutex{}
+	var processor_wakeup_functions map[string](*func())
+	lock_processor_wakeup_function := &sync.Mutex{}
 	//wait_groups := make(map[string]*(sync.WaitGroup))
 	//lock_result_group := &sync.Mutex{}
 	//result_groups := make(map[string](*json.Map))
@@ -38,6 +40,22 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	//complete_message_lock := &sync.RWMutex{}
 	get_controller_by_name_lock := &sync.RWMutex{}
 
+	set_processor_wakeup_functions := func(functions  map[string](*func())) {
+		processor_wakeup_functions = functions
+	}
+
+	get_processor_wakeup_functions := func(queue_name string) *func() {
+		lock_processor_wakeup_function.Lock()
+		defer lock_processor_wakeup_function.Unlock()
+		if processor_wakeup_functions == nil {
+			return nil
+		}
+		processor_wakeup_function, found := processor_wakeup_functions[queue_name]
+		if !found {
+			return nil
+		}
+		return processor_wakeup_function
+	}
 
 	//var processor_callback_function *func(request json.Map) (json.Map, []error) 
 
@@ -599,6 +617,9 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			temp_function := function
 			processor_callback_function = temp_function
 		},*/
+		SetProcessorWakeUpFunctions: func(functions map[string](*func())) {
+			set_processor_wakeup_functions(functions)
+		},
 		Start: func() []error {
 			var start_server_errors []error
 
@@ -615,6 +636,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 					continue
 				}
 				fmt.Println("adding controller: " + "/queue_api/" + temp_controller_name)
+				temp_controller.SetWakeupProcessorManagerFunction(get_processor_wakeup_functions(temp_controller_name))
 				http.HandleFunc("/queue_api/" + temp_controller_name, *(temp_controller.GetProcessRequestFunction()))
 			}
 
