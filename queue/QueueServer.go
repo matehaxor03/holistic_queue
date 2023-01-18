@@ -3,21 +3,9 @@ package queue
 import (
 	"fmt"
 	"net/http"
-	//"strings"
-	//"bytes"
-	//"crypto/tls"
-	//validate "github.com/matehaxor03/holistic_db_client/validate"
 	dao "github.com/matehaxor03/holistic_db_client/dao"
 	common "github.com/matehaxor03/holistic_common/common"
-	//json "github.com/matehaxor03/holistic_json/json"
-	//thread_safe "github.com/matehaxor03/holistic_thread_safe/thread_safe"
-	//http_extension "github.com/matehaxor03/holistic_http/http_extension"
-	//helper "github.com/matehaxor03/holistic_db_client/helper"
-
-
-	//"io/ioutil"
 	"sync"
-	//"time"
 )
 
 type QueueServer struct {
@@ -29,15 +17,9 @@ type QueueServer struct {
 }
 
 func NewQueueServer(port string, server_crt_path string, server_key_path string, processor_domain_name string, processor_port string) (*QueueServer, []error) {
-	//verfiy := validate.NewValidator()
 	var errors []error
 	var processor_wakeup_functions map[string](*func())
 	lock_processor_wakeup_function := &sync.Mutex{}
-	//wait_groups := make(map[string]*(sync.WaitGroup))
-	//lock_result_group := &sync.Mutex{}
-	//result_groups := make(map[string](*json.Map))
-	//get_next_message_lock := &sync.RWMutex{}
-	//complete_message_lock := &sync.RWMutex{}
 	get_controller_by_name_lock := &sync.RWMutex{}
 
 	set_processor_wakeup_functions := func(functions  map[string](*func())) {
@@ -56,9 +38,6 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		}
 		return processor_wakeup_function
 	}
-
-	//var processor_callback_function *func(request json.Map) (json.Map, []error) 
-
 
 	client_manager, client_manager_errors := dao.NewClientManager()
 	if client_manager_errors != nil {
@@ -126,13 +105,6 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 	controllers["Run_End"], _ = NewQueueController("Run_End", processor_domain_name, processor_port)
 
 	controllers["GetTableNames"], _ = NewQueueController("GetTableNames", processor_domain_name, processor_port)
-	
-
-	/*
-	domain_name, domain_name_errors := dao.NewDomainName(verfiy, processor_domain_name)
-	if domain_name_errors != nil {
-		errors = append(errors, domain_name_errors...)
-	}*/
 
 	validate := func() []error {
 		return nil
@@ -172,459 +144,13 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		return server_key_path
 	}
 
-	//domain_name_value := domain_name.GetDomainName()
-
-	/*
-	processor_url := fmt.Sprintf("https://%s:%s/processor_api", domain_name_value, processor_port)
-	transport_config := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-
-	http_client := http.Client{
-		Timeout:   120 * time.Second,
-		Transport: transport_config,
-	}
-	*/
-
-	/*
-	crud_wait_group := func(trace_id string, wait_group *(sync.WaitGroup), mode string)  (*(sync.WaitGroup), []error) {
-		lock_wait_group.Lock()
-		defer lock_wait_group.Unlock()
-		var errors []error
-		if mode == "create" {
-			if common.IsNil(wait_group) {
-				errors = append(errors, fmt.Errorf("cannot add nil wait_group"))
-				return nil, errors
-			}
-
-			_, get_wait_group_found := wait_groups[trace_id]
-			if get_wait_group_found {
-				errors = append(errors, fmt.Errorf("trace_id already exists"))
-				return nil, errors
-			}
-			wait_groups[trace_id] = wait_group
-			return nil, nil
-		} else if mode == "read" {
-			get_wait_group, get_wait_group_found := wait_groups[trace_id]
-			if get_wait_group_found {
-				return get_wait_group, nil
-			}
-			return nil, nil
-		} else if mode == "done-delete" {
-			get_wait_group, get_wait_group_found := wait_groups[trace_id]
-			if get_wait_group_found {
-				get_wait_group.Done()
-				delete(wait_groups, trace_id)
-			}
-			return nil, nil
-		} else if mode == "delete" {
-			_, get_wait_group_found := wait_groups[trace_id]
-			if get_wait_group_found {
-				delete(wait_groups, trace_id)
-			}
-			return nil, nil
-		} else {
-			errors = append(errors, fmt.Errorf("mode %s is not supported", mode))
-			return nil, errors
-		}
-	}*/
-
-	/*
-	crud_result_group := func(trace_id string, result_group *json.Map, mode string)  (*json.Map, []error) {
-		lock_result_group.Lock()
-		defer lock_result_group.Unlock()
-		var errors []error
-		if mode == "create" {
-			if common.IsNil(result_group) {
-				errors = append(errors, fmt.Errorf("cannot add nil result group"))
-				return nil, errors
-			}
-
-			_, get_result_group_found := result_groups[trace_id]
-			if get_result_group_found {
-				errors = append(errors, fmt.Errorf("trace_id already exists"))
-				return nil, errors
-			}
-
-			result_groups[trace_id] = result_group
-			return nil, nil
-		} else if mode == "read" {
-			get_result_group, get_result_group_found := result_groups[trace_id]
-			if get_result_group_found {
-				return get_result_group, nil
-			}
-			return nil, nil
-		} else if mode == "delete" {
-			_, get_result_group_found := result_groups[trace_id]
-			if get_result_group_found {
-				delete(result_groups, trace_id)
-			}
-			return nil, nil
-		} else {
-			errors = append(errors, fmt.Errorf("mode %s is not supported", mode))
-			return nil, errors
-		}
-	}*/
-
-	/*
-	wakeup_processor := func(queue string, trace_id string) []error {
-		wakeup_payload_map := map[string]interface{}{"[queue]":queue, "[queue_mode]":"WakeUp", "[trace_id]":trace_id}
-		wakeup_payload := json.NewMapOfValues(&wakeup_payload_map)
-		
-		if processor_callback_function != nil {
-			_, processor_callback_function_errors := (*processor_callback_function)(*wakeup_payload)
-			if processor_callback_function_errors != nil {
-				return processor_callback_function_errors
-			} else {
-				return nil
-			}
-		}
-
-		var wakeup_processor_errors []error
-
-		
-		var json_payload_builder strings.Builder
-		wakeup_payload_as_string_errors := wakeup_payload.ToJSONString(&json_payload_builder)
-
-		if wakeup_payload_as_string_errors != nil {
-			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_payload_as_string_errors...)
-		}
-
-		if len(wakeup_processor_errors) > 0 {
-			fmt.Println(wakeup_processor_errors)
-			return wakeup_processor_errors
-		}
-
-		wakeup_request_json_bytes := []byte(json_payload_builder.String())
-		wakeup_request_json_reader := bytes.NewReader(wakeup_request_json_bytes)
-		wakeup_request, wakeup_request_error := http.NewRequest(http.MethodPost, processor_url, wakeup_request_json_reader)
-		if wakeup_request_error != nil {
-			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_request_error)
-		}
-		
-		if len(wakeup_processor_errors) > 0 {
-			fmt.Println(wakeup_processor_errors)
-			return wakeup_processor_errors
-		}
-
-		wakeup_http_response, wakeup_http_response_error := http_client.Do(wakeup_request)
-		if wakeup_http_response_error != nil {
-			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_http_response_error)
-		}
-
-		if len(wakeup_processor_errors) > 0 {
-			fmt.Println(wakeup_processor_errors)
-			return wakeup_processor_errors
-		}
-
-		wakeup_response_body_payload, wakeup_response_body_payload_error := ioutil.ReadAll(wakeup_http_response.Body)
-		if wakeup_response_body_payload_error != nil {
-			wakeup_processor_errors = append(wakeup_processor_errors, wakeup_response_body_payload_error)
-		} else if wakeup_response_body_payload == nil {
-			wakeup_processor_errors = append(wakeup_processor_errors, fmt.Errorf("response to wakeup processor is nil"))
-		} 
-
-		if len(wakeup_processor_errors) > 0 {
-			fmt.Println(wakeup_processor_errors)
-			return wakeup_processor_errors
-		}
-
-		parse_waleup_response_json, parse_waleup_response_json_errors := json.Parse(string(wakeup_response_body_payload))
-		if parse_waleup_response_json_errors != nil {
-			wakeup_processor_errors = append(wakeup_processor_errors, parse_waleup_response_json_errors...)
-		} else if common.IsNil(parse_waleup_response_json) {
-			wakeup_processor_errors = append(wakeup_processor_errors, fmt.Errorf("parse_waleup_response_json is nil")) 
-		}
-
-		if len(wakeup_processor_errors) > 0 {
-			fmt.Println(wakeup_processor_errors)
-			return wakeup_processor_errors
-		}
-
-		json_wakeup_errors, json_wakeup_errors_errors := parse_waleup_response_json.GetErrors("[errors]")
-		if json_wakeup_errors_errors != nil {
-			wakeup_processor_errors = append(wakeup_processor_errors, json_wakeup_errors_errors...)
-		}
-		
-		if !common.IsNil(json_wakeup_errors) {
-			wakeup_processor_errors = append(wakeup_processor_errors, json_wakeup_errors...) 
-		}
-
-		if len(wakeup_processor_errors) > 0 {
-			fmt.Println(wakeup_processor_errors)
-			return wakeup_processor_errors
-		}
-
-		return nil
-	}*/
-
-	/*
-	get_next_message_from_queue := func(queue string, traceid string) (json.Map, []error) {
-		get_next_message_lock.Lock()
-		defer get_next_message_lock.Unlock()
-		var errors []error
-		var result json.Map
-		queue_obj, queue_found := queues[queue]
-		if !queue_found {	
-			errors = append(errors, fmt.Errorf("[queue] %s not found", queue))
-		} else if queue_obj == nil {
-			errors = append(errors, fmt.Errorf("[queue] %s is nil", queue))
-		}
-
-		if len(errors) > 0 {
-			return json.NewMapValue(), errors
-		}
-		
-		front := queue_obj.GetAndRemoveFront()
-		if front != nil {
-			result = *front
-		} else {
-			empty_map := map[string]interface{}{"[queue]":"empty", "[trace_id]":traceid, "[queue_mode]":"GetAndRemoveFront", "[async]":true}
-			empty_payload := json.NewMapOfValues(&empty_map)
-			result = *empty_payload
-		}
-
-		return result, nil
-	}*/
-
-	/*
-	complete_request := func(request json.Map) []error {
-		complete_message_lock.Lock()
-		defer complete_message_lock.Unlock()
-		var errors []error
-		trace_id, trace_id_errors := request.GetString("[trace_id]")
-		if trace_id_errors != nil {
-			errors = append(errors, trace_id_errors...)
-		} else if common.IsNil(trace_id) {
-			errors = append(errors, fmt.Errorf("completed request [trace_id] is nil"))
-		}
-
-		if len(errors) > 0 {
-			return errors
-		}
-
-		if !request.IsBoolTrue("[async]") {
-			crud_result_group(*trace_id, &request, "create")
-			crud_wait_group(*trace_id, nil, "done-delete")
-		}
-
-		return nil
-	}*/
-
-	/*
-	push_back_process_request := func(queue string, request *json.Map) (*json.Map, []error) {
-		var errors []error
-
-		queue_obj, queue_found := queues[queue]
-		if !queue_found {	
-			errors = append(errors, fmt.Errorf("[queue] %s not found", queue))
-		} else if queue_obj == nil {
-			errors = append(errors, fmt.Errorf("[queue] %s is nil", queue))
-		}
-
-		trace_id, trace_id_errors := request.GetString("[trace_id]")
-		if trace_id_errors != nil {
-			errors = append(errors, trace_id_errors...)
-		} else if common.IsNil(trace_id) {
-			errors = append(errors, fmt.Errorf("completed request [trace_id] is nil"))
-		}
-
-		if len(errors) > 0 {
-			return nil, errors
-		}
-		
-		if !request.IsBoolTrue("[async]") {
-			var wg sync.WaitGroup
-			wg.Add(1)
-			crud_wait_group(*trace_id, &wg, "create")
-		}			
-		
-		queue_obj.PushBack(request)
-
-		go wakeup_processor(queue, *trace_id)
-
-		if !request.IsBoolTrue("[async]") {
-			get_wait_group, get_wait_group_errors := crud_wait_group(*trace_id, nil, "read")
-			if get_wait_group_errors != nil {
-				errors = append(errors, get_wait_group_errors...)
-			}
-
-			get_result_group, get_result_group_errors := crud_result_group(*trace_id, nil, "read")
-			if get_result_group_errors != nil {
-				errors = append(errors, get_result_group_errors...)
-			}
-
-			if len(errors) > 0 {
-				return nil, errors
-			}
-
-			if common.IsNil(get_result_group) && !common.IsNil(get_wait_group) {
-				get_wait_group.Wait()
-				get_result_group, get_result_group_errors = crud_result_group(*trace_id, nil, "read")
-				if get_result_group_errors != nil {
-					errors = append(errors, get_result_group_errors...)
-				} else if common.IsNil(get_result_group) {
-					errors = append(errors, fmt.Errorf("result group is nil"))
-				}
-			}
-
-			if len(errors) > 0 {
-				crud_result_group(*trace_id, nil, "delete")
-				crud_wait_group(*trace_id, nil, "delete")
-				return nil, errors
-			}
-			
-			request = get_result_group
-			crud_result_group(*trace_id, nil, "delete")
-			crud_wait_group(*trace_id, nil, "delete")	
-		} 
-		return request, nil
-	}*/
-
-	/*processRequest := func(w http.ResponseWriter, req *http.Request) {
-		var process_request_errors []error
-		
-		if !(req.Method == "POST" || req.Method == "PATCH" || req.Method == "PUT") {
-			process_request_errors = append(process_request_errors, fmt.Errorf("request method not supported: " + req.Method))
-		}
-
-		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, json.NewMap(), process_request_errors)
-			return
-		}
-
-		body_payload, body_payload_error := ioutil.ReadAll(req.Body)
-		if body_payload_error != nil {
-			process_request_errors = append(process_request_errors, body_payload_error)
-		}
-
-		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, json.NewMap(), process_request_errors)
-			return
-		}
-		
-		request, request_errors := json.Parse(string(body_payload))
-		if request_errors != nil {
-			process_request_errors = append(process_request_errors, request_errors...)
-		}
-
-		if request == nil {
-			process_request_errors = append(process_request_errors, fmt.Errorf("request is nil"))
-		}
-
-		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, json.NewMap(), process_request_errors)
-			return
-		}
-
-		queue, queue_errors := request.GetString("[queue]")
-		if queue_errors != nil {
-			process_request_errors = append(process_request_errors, queue_errors...)
-		} else if common.IsNil(queue) {
-			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] is nil"))
-		}
-
-		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, json.NewMap(), process_request_errors)
-			return
-		}
-
-		trace_id, trace_id_errors := request.GetString("[trace_id]")
-
-		if *queue == "" {
-			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] has empty value"))
-		}
-
-		if trace_id_errors != nil {
-			process_request_errors = append(process_request_errors, trace_id_errors...)
-		} else if common.IsNil(trace_id) {
-			process_request_errors = append(process_request_errors, fmt.Errorf("[trace_id] is nil"))
-		}
-
-		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, json.NewMap(), process_request_errors)
-			return
-		} 
-
-		queue_obj, queue_found := queues[*queue]
-		if !queue_found {	
-			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s not found", *queue))
-		} else if queue_obj == nil {
-			process_request_errors = append(process_request_errors, fmt.Errorf("[queue] %s is nil", *queue))
-		}
-
-		queue_mode, queue_mode_errors := request.GetString("[queue_mode]")
-		if queue_mode_errors != nil {
-			process_request_errors = append(process_request_errors, queue_mode_errors...)
-		} else if common.IsNil(queue_mode) {
-			temp_queue_mode := "PushBack"
-			request.SetString("[queue_mode]", &temp_queue_mode)
-			queue_mode = &temp_queue_mode
-		} 
-
-		async, async_errors := request.GetBool("[async]")
-		if async_errors != nil {
-			process_request_errors = append(process_request_errors, async_errors...)
-		} else if common.IsNil(async) {
-			async_false := false
-			async = &async_false
-			request.SetBool("[async]", &async_false)
-		}
-
-		if len(process_request_errors) > 0 {
-			http_extension.WriteResponse(w, request, process_request_errors)
-			return
-		}
-		
-		if *queue_mode == "PushBack" {
-			push_back_response, push_back_response_errors := push_back_process_request(*queue, request)
-			if push_back_response_errors != nil {
-				process_request_errors = append(process_request_errors, push_back_response_errors...)
-			} else if common.IsNil(push_back_response) {
-				process_request_errors = append(process_request_errors, fmt.Errorf("push_back_response is nil"))
-			} else {
-				request = push_back_response
-			}
-			
-		} else if *queue_mode == "GetAndRemoveFront" {
-			next_message, next_message_errors := get_next_message_from_queue(*queue, *trace_id)
-			if next_message_errors != nil {
-				process_request_errors = append(process_request_errors, next_message_errors...)
-			} else if common.IsNil(next_message) {
-				process_request_errors = append(process_request_errors, fmt.Errorf("next_message is nil"))
-			} else {
-				request = &next_message
-			}
-		} else if *queue_mode == "complete" {
-			complete_request(*request)
-		} else {
-			process_request_errors = append(process_request_errors, fmt.Errorf("[queue_mode] not supported please implement: %s", *queue_mode))
-		}
-
-		
-		cloned_request, cloned_request_errors := request.Clone()
-		if cloned_request_errors != nil {
-			process_request_errors = append(process_request_errors, cloned_request_errors...)
-		} else if common.IsNil(cloned_request) {
-			process_request_errors = append(process_request_errors, fmt.Errorf("cloned request is nil"))
-		}
-
-		http_extension.WriteResponse(w, cloned_request, process_request_errors)
-	}*/
-
 	x := QueueServer{
-		/*SetProcessorCallbackFunction: func(function *func(request json.Map) (json.Map, []error)) {
-			temp_function := function
-			processor_callback_function = temp_function
-		},*/
 		SetProcessorWakeUpFunctions: func(functions map[string](*func())) {
 			set_processor_wakeup_functions(functions)
 		},
 		Start: func() []error {
 			var start_server_errors []error
-
 			temp_controller_names := get_controller_names()
-			//http.HandleFunc("/queue_api", processRequest)
 
 			for _, temp_controller_name := range temp_controller_names {
 				temp_controller, temp_controller_errors := get_controller_by_name(temp_controller_name)
@@ -661,8 +187,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return get_controller_names()
 		},
 	}
-	//setHolisticQueueServer(&x)
-
+	
 	validate_errors := validate()
 	if validate_errors != nil {
 		errors = append(errors, validate_errors...)

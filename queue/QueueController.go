@@ -12,7 +12,6 @@ import (
 	json "github.com/matehaxor03/holistic_json/json"
 	thread_safe "github.com/matehaxor03/holistic_thread_safe/thread_safe"
 	http_extension "github.com/matehaxor03/holistic_http/http_extension"
-	//helper "github.com/matehaxor03/holistic_db_client/helper"
 
 
 	"io/ioutil"
@@ -21,7 +20,6 @@ import (
 )
 
 type QueueController struct {
-	//Start func() []error
 	GetCompleteFunction func() (*func(json.Map) []error) 
 	GetNextMessageFunction func() (*func(string) (json.Map, []error))
 	GetPushBackFunction func() (*func(json.Map) (*json.Map, []error))
@@ -38,156 +36,14 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 	result_groups := make(map[string](*json.Map))
 	get_next_message_lock := &sync.RWMutex{}
 	complete_message_lock := &sync.RWMutex{}
-	//get_queue_by_name_lock := &sync.RWMutex{}
-
-
 	var processor_callback_function *func()
 
-	/*
-	client_manager, client_manager_errors := dao.NewClientManager()
-	if client_manager_errors != nil {
-		return nil, client_manager_errors
-	}*/
-
-	/*
-	test_read_client, test_read_client_errors := client_manager.GetClient("127.0.0.1", "3306", "holistic", "holistic_r")
-	if test_read_client_errors != nil {
-		return nil, test_read_client_errors
-	}*/
-	
-	//test_read_database := test_read_client.GetDatabase()
-
-	/*
-	table_names, table_names_errors := test_read_database.GetTableNames()
-	if table_names_errors != nil {
-		return nil, table_names_errors
-	}*/
-
 	queue_obj := thread_safe.NewQueue()
-
-	//queues["Run_Sync"] = thread_safe.NewQueue()
-
-/*
-	for _, table_name := range table_names {
-		queues["CreateRecords_"+table_name] = thread_safe.NewQueue()
-		queues["CreateRecord_"+table_name] = thread_safe.NewQueue()
-		queues["ReadRecords_"+table_name] = thread_safe.NewQueue()
-		queues["UpdateRecords_"+table_name] = thread_safe.NewQueue()
-		queues["UpdateRecord_"+table_name] = thread_safe.NewQueue()
-		queues["CreateRecords_"+table_name] = thread_safe.NewQueue()
-		queues["DeleteRecords_"+table_name] = thread_safe.NewQueue()
-		queues["GetSchema_"+table_name] = thread_safe.NewQueue()
-	}
-
-	queues["Run_StartBuildBranchInstance"] = thread_safe.NewQueue()
-	queues["Run_NotStarted"] = thread_safe.NewQueue()
-	queues["Run_Start"] = thread_safe.NewQueue()
-	queues["Run_CreateSourceFolder"] = thread_safe.NewQueue()
-	queues["Run_CreateDomainNameFolder"] = thread_safe.NewQueue()
-	queues["Run_CreateRepositoryAccountFolder"] = thread_safe.NewQueue()
-	queues["Run_CreateRepositoryFolder"] = thread_safe.NewQueue()
-	queues["Run_CreateBranchesFolder"] = thread_safe.NewQueue()
-	queues["Run_CreateTagsFolder"] = thread_safe.NewQueue()
-	queues["Run_CreateBranchInstancesFolder"] = thread_safe.NewQueue()
-	queues["Run_CreateTagInstancesFolder"] = thread_safe.NewQueue()
-	queues["Run_CreateBranchOrTagFolder"] = thread_safe.NewQueue()
-	queues["Run_CloneBranchOrTagFolder"] = thread_safe.NewQueue()
-	queues["Run_PullLatestBranchOrTagFolder"] = thread_safe.NewQueue()
-	queues["Run_CreateInstanceFolder"] = thread_safe.NewQueue()
-	queues["Run_CopyToInstanceFolder"] = thread_safe.NewQueue()
-	queues["Run_CreateGroup"] = thread_safe.NewQueue()
-	queues["Run_CreateUser"] = thread_safe.NewQueue()
-	queues["Run_AssignGroupToUser"] = thread_safe.NewQueue()
-	queues["Run_AssignGroupToInstanceFolder"] = thread_safe.NewQueue()
-	queues["Run_Clean"] = thread_safe.NewQueue()
-	queues["Run_Lint"] = thread_safe.NewQueue()
-	queues["Run_Build"] = thread_safe.NewQueue()
-	queues["Run_UnitTests"] = thread_safe.NewQueue()
-	queues["Run_IntegrationTests"] = thread_safe.NewQueue()
-	queues["Run_IntegrationTestSuite"] = thread_safe.NewQueue()
-	queues["Run_RemoveGroupFromInstanceFolder"] = thread_safe.NewQueue()
-	queues["Run_RemoveGroupFromUser"] = thread_safe.NewQueue()
-	queues["Run_DeleteGroup"] = thread_safe.NewQueue()
-	queues["Run_DeleteUser"] = thread_safe.NewQueue()
-	queues["Run_DeleteInstanceFolder"] = thread_safe.NewQueue()
-	queues["Run_End"] = thread_safe.NewQueue()
-
-	queues["GetTableNames"] = thread_safe.NewQueue()
-	*/
-	
 
 	domain_name, domain_name_errors := dao.NewDomainName(verfiy, processor_domain_name)
 	if domain_name_errors != nil {
 		errors = append(errors, domain_name_errors...)
 	}
-
-	/*
-	//todo: add filters to fields
-	data := json.NewMapValue()
-	data.SetMapValue("[fields]", json.NewMapValue())
-	data.SetMapValue("[schema]", json.NewMapValue())
-
-	map_system_fields := json.NewMapValue()
-	map_system_fields.SetObjectForMap("[port]", port)
-	map_system_fields.SetObjectForMap("[server_crt_path]", server_crt_path)
-	map_system_fields.SetObjectForMap("[server_key_path]", server_key_path)
-	data.SetMapValue("[system_fields]", map_system_fields)
-
-	//todo: add filters to fields
-
-	map_system_schema := json.NewMapValue()
-	
-	map_port := json.NewMapValue()
-	map_port.SetStringValue("type", "string")
-	map_system_schema.SetMapValue("[port]", map_port)
-
-	map_server_crt_path := json.NewMapValue()
-	map_server_crt_path.SetStringValue("type", "string")
-	map_system_schema.SetMapValue("[server_crt_path]", map_server_crt_path)
-
-	map_server_key_path := json.NewMapValue()
-	map_server_key_path.SetStringValue("type", "string")
-	map_system_schema.SetMapValue("[server_key_path]", map_server_key_path)
-
-	map_queue_port := json.NewMapValue()
-	map_queue_port.SetStringValue("type", "string")
-	map_system_schema.SetMapValue("[server_key_path]", map_queue_port)
-
-	data.SetMapValue("[system_schema]", map_system_schema)
-	*/
-
-	/*
-	getData := func() *json.Map {
-		return &data
-	}
-
-	validate := func() []error {
-		return nil
-		//return dao.ValidateData(getData(), "HolisticQueueServer")
-	}*/
-
-	/*
-	get_queue_by_name := func(queue_name string) (*thread_safe.Queue, error){
-		get_queue_by_name_lock.Lock()
-		defer get_queue_by_name_lock.Unlock()
-		queue_obj, queue_found := queues[queue_name]
-		if !queue_found {
-			return nil, fmt.Errorf("queue not found %s", queue_name)
-		} else if common.IsNil(queue_obj) {
-			return nil, fmt.Errorf("queue found but is nil %s", queue_name)
-		} 
-		return queue_obj, nil
-	}
-	
-	get_queue_names := func() []string {
-		get_queue_by_name_lock.Lock()
-		defer get_queue_by_name_lock.Unlock()
-		queue_names := make([]string, len(queues))
-		for key, _ := range queues {
-			queue_names = append(queue_names, key)
-		}
-		return queue_names
-	}*/
 
 	domain_name_value := domain_name.GetDomainName()
 
@@ -602,43 +458,6 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 			temp_function := function
 			processor_callback_function = temp_function
 		},
-		/*
-		Start: func() []error {
-			var start_server_errors []error
-
-			temp_queue_names := get_queue_names()
-			//http.HandleFunc("/queue_api", processRequest)
-
-			for _, temp_queue_name := range temp_queue_names {
-				http.HandleFunc("/queue_api/" + temp_queue_name, processRequest)
-			}
-
-			temp_port, temp_port_errors := getPort()
-			if temp_port_errors != nil {
-				return temp_port_errors
-			}
-
-			temp_server_crt_path, temp_server_crt_path_errors := getServerCrtPath()
-			if temp_server_crt_path_errors != nil {
-				return temp_server_crt_path_errors
-			}
-
-			temp_server_key_path, temp_server_key_path_errors := getServerKeyPath()
-			if temp_server_key_path_errors != nil {
-				return temp_server_key_path_errors
-			}
-
-			err := http.ListenAndServeTLS(":"+ temp_port, temp_server_crt_path, temp_server_key_path, nil)
-			if err != nil {
-				start_server_errors = append(start_server_errors, err)
-			}
-
-			if len(start_server_errors) > 0 {
-				return start_server_errors
-			}
-
-			return nil
-		},*/
 		GetCompleteFunction: func() (*func(json.Map) []error) {
 			function := complete_request
 			return &function
@@ -656,13 +475,6 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 			return &function
 		},
 	}
-	//setHolisticQueueServer(&x)
-
-	/*
-	validate_errors := validate()
-	if validate_errors != nil {
-		errors = append(errors, validate_errors...)
-	}*/
 
 	if len(errors) > 0 {
 		return nil, errors
