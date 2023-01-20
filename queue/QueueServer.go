@@ -71,7 +71,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		controllers["GetSchema_"+table_name], _ = NewQueueController("GetSchema_"+table_name, processor_domain_name, processor_port)
 	}
 
-	controllers["Run_StartBuildBranchInstance"], _ = NewQueueController("Run_StartBuildBranchInstance", processor_domain_name, processor_port)
+	controllers["Run_StartBranchInstance"], _ = NewQueueController("Run_StartBranchInstance", processor_domain_name, processor_port)
 	controllers["Run_NotStarted"], _ = NewQueueController("Run_NotStarted", processor_domain_name, processor_port)
 	controllers["Run_Start"], _ = NewQueueController("Run_Start", processor_domain_name, processor_port)
 	controllers["Run_CreateSourceFolder"], _ = NewQueueController("Run_CreateSourceFolder", processor_domain_name, processor_port)
@@ -187,7 +187,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 			return get_controller_names()
 		},
 	}
-	
+
 	validate_errors := validate()
 	if validate_errors != nil {
 		errors = append(errors, validate_errors...)
