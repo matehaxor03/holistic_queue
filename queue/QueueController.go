@@ -29,7 +29,7 @@ type QueueController struct {
 
 func NewQueueController(queue_name string, processor_domain_name string, processor_port string) (*QueueController, []error) {
 	verfiy := validate.NewValidator()
-	var this_queue_controller *QueueController
+	//var this_queue_controller *QueueController
 	var errors []error
 	lock_wait_group := &sync.Mutex{}
 	wait_groups := make(map[string]*(sync.WaitGroup))
@@ -67,13 +67,14 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 		return messageCount
 	}
 
+	/*
 	set_queue_controller := func(queue_controller *QueueController) {
 		this_queue_controller = queue_controller
-	}
+	}*/
 
-	get_queue_controller := func() *QueueController {
+	/*get_queue_controller := func() *QueueController {
 		return this_queue_controller
-	}
+	}*/
 
 	crud_wait_group := func(trace_id string, wait_group *(sync.WaitGroup), mode string)  (*(sync.WaitGroup), []error) {
 		lock_wait_group.Lock()
@@ -399,7 +400,7 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 		if trace_id_errors != nil {
 			process_request_errors = append(process_request_errors, trace_id_errors...)
 		} else if common.IsNil(trace_id) {
-			temp_trace_id := common.GenerateTraceId(incrementMessageCount(), fmt.Sprintf("%s", get_queue_controller()))
+			temp_trace_id := common.GenerateTraceId(incrementMessageCount(), queue_name)
 			trace_id = &temp_trace_id
 			request.SetString("[trace_id]", &temp_trace_id)
 		}
@@ -494,7 +495,7 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 			return &function
 		},
 	}
-	set_queue_controller(&x)
+	//set_queue_controller(&x)
 
 	if len(errors) > 0 {
 		return nil, errors
