@@ -23,6 +23,7 @@ type QueueController struct {
 	GetCompleteFunction func() (*func(json.Map) []error) 
 	GetNextMessageFunction func() (*func(string) (json.Map, []error))
 	GetPushBackFunction func() (*func(json.Map) (*json.Map, []error))
+	GetPushFrontFunction func() (*func(json.Map) (*json.Map, []error))
 	SetWakeupProcessorManagerFunction func(*func())
 	GetProcessRequestFunction func() *func(w http.ResponseWriter, req *http.Request)
 }
@@ -286,6 +287,68 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 		return nil
 	}
 
+	push_front_process_request := func(request json.Map) (*json.Map, []error) {
+		var errors []error
+
+		trace_id, trace_id_errors := request.GetString("[trace_id]")
+		if trace_id_errors != nil {
+			errors = append(errors, trace_id_errors...)
+		} else if common.IsNil(trace_id) {
+			errors = append(errors, fmt.Errorf("completed request [trace_id] is nil"))
+		}
+
+		if len(errors) > 0 {
+			return nil, errors
+		}
+		
+		if !request.IsBoolTrue("[async]") {
+			var wg sync.WaitGroup
+			wg.Add(1)
+			crud_wait_group(*trace_id, &wg, "create")
+		}			
+		
+		queue_obj.PushFront(&request)
+
+		go wakeup_processor()
+
+		if !request.IsBoolTrue("[async]") {
+			get_wait_group, get_wait_group_errors := crud_wait_group(*trace_id, nil, "read")
+			if get_wait_group_errors != nil {
+				errors = append(errors, get_wait_group_errors...)
+			}
+
+			get_result_group, get_result_group_errors := crud_result_group(*trace_id, nil, "read")
+			if get_result_group_errors != nil {
+				errors = append(errors, get_result_group_errors...)
+			}
+
+			if len(errors) > 0 {
+				return nil, errors
+			}
+
+			if common.IsNil(get_result_group) && !common.IsNil(get_wait_group) {
+				get_wait_group.Wait()
+				get_result_group, get_result_group_errors = crud_result_group(*trace_id, nil, "read")
+				if get_result_group_errors != nil {
+					errors = append(errors, get_result_group_errors...)
+				} else if common.IsNil(get_result_group) {
+					errors = append(errors, fmt.Errorf("result group is nil"))
+				}
+			}
+
+			if len(errors) > 0 {
+				crud_result_group(*trace_id, nil, "delete")
+				crud_wait_group(*trace_id, nil, "delete")
+				return nil, errors
+			}
+			
+			request = *get_result_group
+			crud_result_group(*trace_id, nil, "delete")
+			crud_wait_group(*trace_id, nil, "delete")	
+		} 
+		return &request, nil
+	}
+
 	push_back_process_request := func(request json.Map) (*json.Map, []error) {
 		var errors []error
 
@@ -437,7 +500,16 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 			return
 		}
 		
-		if *queue_mode == "PushBack" {
+		if *queue_mode == "PushFront" {
+			push_front_response, push_front_response_errors := push_front_process_request(*request)
+			if push_front_response_errors != nil {
+				process_request_errors = append(process_request_errors, push_front_response_errors...)
+			} else if common.IsNil(push_front_response) {
+				process_request_errors = append(process_request_errors, fmt.Errorf("push_front_response is nil"))
+			} else {
+				request = push_front_response
+			}
+		} else if *queue_mode == "PushBack" {
 			push_back_response, push_back_response_errors := push_back_process_request(*request)
 			if push_back_response_errors != nil {
 				process_request_errors = append(process_request_errors, push_back_response_errors...)
@@ -488,6 +560,10 @@ func NewQueueController(queue_name string, processor_domain_name string, process
 		},
 		GetPushBackFunction: func() (*func(json.Map) (*json.Map, []error)) {
 			function := push_back_process_request
+			return &function
+		},
+		GetPushFrontFunction: func() (*func(json.Map) (*json.Map, []error)) {
+			function := push_front_process_request
 			return &function
 		},
 		GetProcessRequestFunction: func() *func(w http.ResponseWriter, req *http.Request) {
