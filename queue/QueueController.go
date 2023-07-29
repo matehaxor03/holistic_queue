@@ -6,7 +6,7 @@ import (
 	"strings"
 	"bytes"
 	"crypto/tls"
-	validate "github.com/matehaxor03/holistic_db_client/validate"
+	validate "github.com/matehaxor03/holistic_validator/validate"
 	dao "github.com/matehaxor03/holistic_db_client/dao"
 	common "github.com/matehaxor03/holistic_common/common"
 	json "github.com/matehaxor03/holistic_json/json"
