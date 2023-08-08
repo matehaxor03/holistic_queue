@@ -69,6 +69,7 @@ func NewQueueServer(port string, server_crt_path string, server_key_path string,
 		controllers["CreateRecords_"+table_name], _ = NewQueueController("CreateRecords_"+table_name, processor_domain_name, processor_port)
 		controllers["DeleteRecords_"+table_name], _ = NewQueueController("DeleteRecords_"+table_name, processor_domain_name, processor_port)
 		controllers["GetSchema_"+table_name], _ = NewQueueController("GetSchema_"+table_name, processor_domain_name, processor_port)
+		controllers["GetTableCount_"+table_name], _ = NewQueueController("GetTableCount_"+table_name, processor_domain_name, processor_port)
 	}
 
 	controllers["Run_StartBranchInstance"], _ = NewQueueController("Run_StartBranchInstance", processor_domain_name, processor_port)
