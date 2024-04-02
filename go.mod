@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/matehaxor03/holistic_db_client v0.0.559
-	github.com/matehaxor03/holistic_json v0.0.92
+	github.com/matehaxor03/holistic_json v0.0.93
 	github.com/matehaxor03/holistic_thread_safe v0.0.1
 )
 
